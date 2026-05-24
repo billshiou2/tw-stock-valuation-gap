@@ -12,7 +12,7 @@
 - 已新增 `.gitkeep` 以保留基礎空資料夾。
 - 已新增 `docs/git-workflow.md`，記錄人工建立 GitHub repo 後的 Git 上傳流程與上傳前檢查。
 - 已在 `README.md` 加入 Git 上傳流程入口。
-- 使用者決定要將此專案上傳到 Git；已完成本機 Git 初始化與第一個 commit，已設定 GitHub remote，但 push 因外部資料上傳風險需要使用者明確批准後再執行。
+- 使用者決定要將此專案上傳到 Git；已完成本機 Git 初始化、remote 設定與 GitHub push。
 
 ## 已決定事項
 
@@ -44,7 +44,8 @@
 - 討論後決定加入 `.gitkeep`，避免空資料夾在 Git 中消失。
 - 討論後決定補上 Git 上傳流程，採用人工建立 GitHub repo 加本機 Git 指令 push 的保守流程。
 - 討論後決定開始將目前專案上傳到 Git；已完成本機 Git 初始化、安全檢查與第一個 commit，並設定 remote 為 `https://github.com/billshiou2/00_project-template.git`。
-- 嘗試 push 時，網路沙盒先阻擋連線；申請網路權限時，安全審核要求使用者先明確批准外部 GitHub 上傳風險。
+- 嘗試 push 時，網路沙盒先阻擋連線；使用者批准後，已成功推送到 GitHub。
+- 因 Git 偵測 repo ownership 與目前 Windows 使用者不同，已依 Git 提示將 `C:/# code/# project-template3` 加入全域 `safe.directory`。
 
 ## 待確認事項
 
@@ -55,4 +56,4 @@
 - 依實際專案需求新增原始碼、設定或文件。
 - 若新增套件，必須遵守 `AGENTS.md` 的套件版本安全規則。
 - 新專案第一次上傳 GitHub 時，參考 `docs/git-workflow.md`。
-- 若要完成本次上傳，請使用者明確批准將此本機 repo 內容推送到 `https://github.com/billshiou2/00_project-template.git`，再執行 `git push -u origin main`。
+- 目前 `main` 已設定追蹤 `origin/main`，後續一般更新可使用 `git push`。
