@@ -1,0 +1,13 @@
+.env
+.env.*
+!.env.example
+
+output/*
+!output/.gitkeep
+tmp/*
+!tmp/.gitkeep
+temp/
+
+node_modules/
+__pycache__/
+.venv/
