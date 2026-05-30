@@ -45,6 +45,22 @@
 - `.env` 與 `.env.example` 的非敏感預設值應盡量保持一致；只有密鑰、token、密碼、私人憑證、本機路徑或其他敏感 / 本機專用值可以不同。
 - `output/`、`tmp/`、依賴資料夾與快取檔預設不提交。
 
+## Git 上傳前確認規則
+
+執行 `git push` 或設定 / 修改 remote 前，必須先確認目前專案與目標 Git repo 對得上，避免把檔案推到錯誤 repo。
+
+push 前必須檢查：
+
+- 目前工作目錄路徑與資料夾名稱。
+- `git remote -v` 的目標 URL；若尚未設定 remote，則檢查準備要設定的 repo URL。
+- 目前 branch 與 upstream，例如 `git status --short --branch`；若尚未設定 upstream，則確認準備推送的 branch。
+- 最新 commit 內容，例如 `git log -1 --oneline`。
+- 將要提交或推送的檔案清單，例如 `git status --short`、`git diff --stat`、`git diff --cached --stat`。
+
+本機資料夾名稱、README/專案名稱、remote repo 名稱與 branch 不要求完全相同，但必須能合理對應到同一個專案。若出現無法合理對應的差異、看起來像不同專案、或與使用者明確指定的目標不符，必須先告知使用者並停止 push，等使用者再次確認後才能繼續。
+
+若 remote 已存在但看起來指向不同專案，不得自行覆蓋或改 remote；必須先回報目前 remote 與預期目標的差異。
+
 ## Agent 進度記錄規則
 
 每次開始工作前，agent 必須先閱讀：

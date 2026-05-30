@@ -10,6 +10,24 @@
 git status --short
 ```
 
+確認目前所在專案與 Git 目標能合理對應：
+
+```powershell
+Get-Location
+git remote -v
+git status --short --branch
+git log -1 --oneline
+```
+
+檢查時要比對：
+
+- 目前資料夾名稱是否能合理對應到要上傳的專案。
+- README 或專案說明是否能合理對應到要上傳的專案。
+- remote URL 的 repo 名稱是否能合理對應到目前專案；若尚未設定 remote，則比對準備要設定的 repo URL。
+- 目前 branch 與 upstream 是否是預期目標；若尚未設定 upstream，則確認準備推送的 branch。
+
+資料夾名稱、專案說明、remote repo 名稱與 branch 不需要逐字相同，但要能合理對應到同一個專案。若出現無法合理對應的差異、看起來像不同專案、或與使用者指定目標不符，先停止上傳並向使用者確認，不要直接 `git push`。
+
 確認本機機密與產生檔不會被提交：
 
 ```powershell
@@ -45,6 +63,8 @@ git branch -M main
 git remote add origin <你的 repo URL>
 git push -u origin main
 ```
+
+如果 `origin` 已經存在，先用 `git remote -v` 確認它能合理對應到這個專案的 GitHub repo。若看起來像不同專案，不要直接覆蓋 remote，也不要 push，先回報目前 remote 與預期 repo 的差異。
 
 ## 上傳後確認
 

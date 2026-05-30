@@ -22,3 +22,5 @@
 ## Git 上傳
 
 第一次上傳 GitHub 前，先參考 `docs/git-workflow.md`。建議先在 GitHub 網頁人工建立 repo，確認名稱、公開狀態與權限後，再用 Git 指令連接遠端並 push。
+
+push 前必須確認目前資料夾、專案說明、branch 與 remote URL 或準備設定的 repo URL 能合理對應到同一個專案；若看起來像不同專案或與指定目標不符，先停止並重新確認目標。

@@ -13,6 +13,7 @@
 - 已新增 `docs/git-workflow.md`，記錄人工建立 GitHub repo 後的 Git 上傳流程與上傳前檢查。
 - 已在 `README.md` 加入 Git 上傳流程入口。
 - 使用者決定要將此專案上傳到 Git；已完成本機 Git 初始化、remote 設定與 GitHub push。
+- 已補強 Git 上傳前確認規則：push 前必須核對目前資料夾、專案說明、branch / upstream、remote URL 或準備設定的 repo URL 與使用者指定目標是否能合理對應；若看起來像不同專案或與指定目標不符，必須停止並再次確認。
 
 ## 已決定事項
 
@@ -33,6 +34,8 @@
 - 使用 `.gitkeep` 保留 `config/`、`docs/`、`src/`、`output/`、`tmp/` 的資料夾結構。
 - GitHub repo 建議先由使用者在網頁人工建立，確認名稱、private/public 與權限後，再用 Git 指令上傳。
 - GitHub CLI 不列入預設流程，只作為未來需要自動化時的可選方式。
+- 執行 `git push` 或設定 / 修改 remote 前，必須確認本機專案名稱 / 路徑、README 或專案說明、branch、upstream 與 remote repo 名稱或準備設定的 repo URL 能合理對應到同一個專案；若看起來像不同專案或與使用者明確指定目標不符，必須先通知使用者並等待再次確認。
+- 若既有 remote 看起來指向不同專案，不得自行覆蓋或 push，必須先回報差異。
 
 ## 歷程重點
 
@@ -46,6 +49,8 @@
 - 討論後決定開始將目前專案上傳到 Git；已完成本機 Git 初始化、安全檢查與第一個 commit，並設定 remote 為 `https://github.com/billshiou2/00_project-template.git`。
 - 嘗試 push 時，網路沙盒先阻擋連線；使用者批准後，已成功推送到 GitHub。
 - 因 Git 偵測 repo ownership 與目前 Windows 使用者不同，已依 Git 提示將 `C:/# code/# project-template3` 加入全域 `safe.directory`。
+- 使用者提醒曾發生 Git 上傳錯 repo 的風險，因此已將 push 前專案名稱 / remote / branch 核對流程寫入 `AGENTS.md`、`docs/git-workflow.md` 與 `README.md`；後續又確認不要求名稱逐字相同，只要求能合理對應。
+- 使用者要求 push 本次 Git 上傳前確認規則更新；push 前已核對目前路徑、remote、branch 與變更檔案能合理對應到本專案。
 
 ## 待確認事項
 
