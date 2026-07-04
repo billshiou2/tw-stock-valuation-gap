@@ -20,6 +20,8 @@
 - README now documents the `.bat` workflow, `--no-pause`, and the small `--cnyes-limit 20` stability test.
 - Completed a full all-market run through `cmd /c run_full_scan.bat --no-pause`. Output: `output/tw_valuation_gap_20260703.xlsx`, 1980 rows, 78 undervalued, 35 overvalued. Cnyes fetch result: `ok=1968`, `no_target_valuation=12`, no HTTP errors. Runtime was about 55 minutes.
 - Pre-push safety check found existing `origin` still points to `https://github.com/billshiou2/00_project-template.git`; user requested target repo `https://github.com/billshiou2/tw-stock-valuation-gap.git`. Remote must be changed only after explicit confirmation because it currently points to a different project.
+- Updated Excel output formatting after user asked for direct Chinese headers and thousands separators. `src/tw_target_scan.py` now keeps internal English keys but writes Chinese headers to `.xlsx`; prices/targets use `#,##0.00`, integer quantities/counts use `#,##0`, and percentage fields remain `0.00%`.
+- Rewrote the existing full output workbook `output/tw_valuation_gap_20260703.xlsx` in place without re-crawling data so it now has Chinese headers and thousands number formats.
 
 ## 2026-06-12
 

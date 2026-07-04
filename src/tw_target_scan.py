@@ -557,6 +557,60 @@ def column_order() -> list[str]:
     ]
 
 
+def column_label(column: str) -> str:
+    labels = {
+        "market": "市場",
+        "stock_id": "股票代號",
+        "name": "股票名稱",
+        "company_name": "公司全名",
+        "industry": "產業別",
+        "listing_date": "上市櫃日期",
+        "close_date": "收盤日期",
+        "close": "收盤價",
+        "change": "漲跌",
+        "open": "開盤價",
+        "high": "最高價",
+        "low": "最低價",
+        "trade_volume": "成交股數",
+        "trade_value": "成交金額",
+        "transactions": "成交筆數",
+        "upside_to_mean_pct": "平均目標價潛在漲跌幅",
+        "upside_to_median_pct": "中位目標價潛在漲跌幅",
+        "upside_to_high_pct": "最高目標價潛在漲跌幅",
+        "downside_to_low_pct": "最低目標價潛在漲跌幅",
+        "valuation_age_days": "評價距今天數",
+        "valuation_signal": "估值訊號",
+        "confidence_note": "可信度註記",
+        "cnyes_url": "鉅亨個股頁",
+        "target_date": "目標價日期",
+        "target_high": "最高目標價",
+        "target_low": "最低目標價",
+        "target_mean": "平均目標價",
+        "target_median": "中位目標價",
+        "num_est": "預估家數",
+        "fe_up": "上修家數",
+        "fe_down": "下修家數",
+        "fe_stddev": "目標價標準差",
+        "currency": "幣別",
+        "cnyes_last": "鉅亨頁面價格",
+        "cnyes_status": "鉅亨抓取狀態",
+        "cnyes_error": "鉅亨錯誤訊息",
+        "cnyes_attempts": "鉅亨請求次數",
+        "generated_at": "產出時間",
+        "source": "資料源",
+        "status": "狀態",
+        "rows": "筆數",
+        "data_date": "資料日期",
+        "url": "網址",
+        "message": "訊息",
+        "section": "區塊",
+        "item": "項目",
+        "description": "說明",
+        "field": "欄位",
+    }
+    return labels.get(column, column)
+
+
 def status_rows(statuses: list[SourceStatus], all_rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     generated_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     rows = [
@@ -683,7 +737,7 @@ def xml_text(value: Any) -> str:
 
 
 def xlsx_sheet_xml(name: str, rows: list[dict[str, Any]], columns: list[str]) -> str:
-    table = [columns] + [[row.get(col, "") for col in columns] for row in rows]
+    table = [[column_label(column) for column in columns]] + [[row.get(col, "") for col in columns] for row in rows]
     max_row = max(1, len(table))
     max_col = max(1, len(columns))
     parts = [
@@ -695,34 +749,39 @@ def xlsx_sheet_xml(name: str, rows: list[dict[str, Any]], columns: list[str]) ->
         "<cols>",
     ]
     for idx, column in enumerate(columns, start=1):
-        width = min(42, max(10, len(column) + 2))
+        label = column_label(column)
+        width = min(42, max(10, len(label) * 2 + 2))
         if column in {"cnyes_url", "company_name", "cnyes_error", "confidence_note"}:
             width = 28
         parts.append(f'<col min="{idx}" max="{idx}" width="{width}" customWidth="1"/>')
     parts.append("</cols><sheetData>")
 
     percent_cols = {col for col in columns if col.endswith("_pct")}
-    number_cols = {
+    decimal_cols = {
         "close",
         "change",
         "open",
         "high",
         "low",
-        "trade_volume",
-        "trade_value",
-        "transactions",
         "target_high",
         "target_low",
         "target_mean",
         "target_median",
+        "fe_stddev",
+        "cnyes_last",
+    }
+    integer_cols = {
+        "trade_volume",
+        "trade_value",
+        "transactions",
         "num_est",
         "fe_up",
         "fe_down",
-        "fe_stddev",
-        "cnyes_last",
         "valuation_age_days",
         "cnyes_attempts",
+        "rows",
     }
+    number_cols = decimal_cols.union(integer_cols)
     for row_idx, row_values in enumerate(table, start=1):
         parts.append(f'<row r="{row_idx}">')
         for col_idx, value in enumerate(row_values, start=1):
@@ -731,7 +790,9 @@ def xlsx_sheet_xml(name: str, rows: list[dict[str, Any]], columns: list[str]) ->
             style = 1 if row_idx == 1 else 0
             if row_idx > 1 and column in percent_cols:
                 style = 3
-            elif row_idx > 1 and column in number_cols:
+            elif row_idx > 1 and column in integer_cols:
+                style = 4
+            elif row_idx > 1 and column in decimal_cols:
                 style = 2
 
             if value is None or value == "":
@@ -798,12 +859,12 @@ def content_types_xml(sheet_count: int) -> str:
 def styles_xml() -> str:
     return """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
-<numFmts count="2"><numFmt numFmtId="164" formatCode="0.00"/><numFmt numFmtId="165" formatCode="0.00%"/></numFmts>
+<numFmts count="3"><numFmt numFmtId="164" formatCode="#,##0.00"/><numFmt numFmtId="165" formatCode="0.00%"/><numFmt numFmtId="166" formatCode="#,##0"/></numFmts>
 <fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts>
 <fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FFD9EAF7"/><bgColor indexed="64"/></patternFill></fill></fills>
 <borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>
 <cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
-<cellXfs count="4"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="1" borderId="0" xfId="0" applyFont="1" applyFill="1"/><xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/><xf numFmtId="165" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/></cellXfs>
+<cellXfs count="5"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="1" borderId="0" xfId="0" applyFont="1" applyFill="1"/><xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/><xf numFmtId="165" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/><xf numFmtId="166" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/></cellXfs>
 <cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>
 </styleSheet>"""
 
