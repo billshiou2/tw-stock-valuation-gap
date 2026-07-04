@@ -1,5 +1,35 @@
 # Agent Progress
 
+## 2026-07-04
+
+- Implemented the planned Taiwan valuation-gap Excel workflow in `src/tw_target_scan.py`.
+- Main source is now daily close data, not TWSE MIS intraday quotes: TWSE `STOCK_DAY_ALL` for listed stocks and TPEx `tpex_mainboard_daily_close_quotes` for OTC stocks.
+- Company universe is joined from TWSE `t187ap03_L` and TPEx `mopsfin_t187ap03_O` so `All_Stocks` is one row per listed/OTC company.
+- Cnyes target valuation is fetched from `https://www.cnyes.com/twstock/{stock_id}` embedded `targetValuation`; missing target data keeps the row and sets `cnyes_status`.
+- Output is now `.xlsx` only, written under `output/` as `tw_valuation_gap_YYYYMMDD.xlsx`, with sheets `Undervalued`, `Overvalued`, `All_Stocks`, `Stale_or_Low_Confidence`, `Fetch_Status`, and `Data_Dictionary`.
+- Added a `Guide` sheet explaining column groups, field names, and the user's question that valuation-gap columns compare exchange close prices against Cnyes consensus target prices.
+- If the target `.xlsx` is locked by Excel, the script now writes a timestamp-suffixed filename instead of failing.
+- Non-default test modes add filename suffixes (`_watchlist`, `_no_cnyes`) so validation runs do not overwrite the default full-market report.
+- README and `docs/data-sources.md` were updated for the new daily-close + Cnyes consensus workflow.
+- Added safer Cnyes crawling controls: browser-like headers, default `--cnyes-delay 0.5`, `--cnyes-retries`, exponential backoff, progress logging, `--cnyes-limit`, and a high HTTP-error early stop (`skipped_error_threshold`).
+- Added short retry handling for TWSE/TPEx JSON downloads after a TPEx close-data `IncompleteRead` happened during testing.
+- Verified `py -3.11 -m py_compile src\tw_target_scan.py`.
+- Verified watchlist Cnyes run with 3/3 Cnyes `ok`.
+- Verified all-market sample with `--cnyes-limit 20 --cnyes-delay 0.5 --cnyes-retries 1`: output `output/tw_valuation_gap_20260703_cnyes_limit20.xlsx`, 1980 stock rows, Cnyes 20/20 `ok`, remaining rows marked `skipped_limit`.
+- Added `run_full_scan.bat` as the main Windows entrypoint. It runs the full scanner with conservative Cnyes settings: `--cnyes-delay 1.0`, `--cnyes-retries 2`, `--cnyes-backoff 2.0`, progress every 25 stocks, and high-error early stop protection.
+- README now documents the `.bat` workflow, `--no-pause`, and the small `--cnyes-limit 20` stability test.
+- Completed a full all-market run through `cmd /c run_full_scan.bat --no-pause`. Output: `output/tw_valuation_gap_20260703.xlsx`, 1980 rows, 78 undervalued, 35 overvalued. Cnyes fetch result: `ok=1968`, `no_target_valuation=12`, no HTTP errors. Runtime was about 55 minutes.
+- Pre-push safety check found existing `origin` still points to `https://github.com/billshiou2/00_project-template.git`; user requested target repo `https://github.com/billshiou2/tw-stock-valuation-gap.git`. Remote must be changed only after explicit confirmation because it currently points to a different project.
+
+## 2026-06-12
+
+- 使用者想建立台股「目前價格 vs 研究機構/券商目標價」掃描工具，偏好大間機構如元大、統一，並詢問是否有公開資源。
+- 已建立第一版 Python 標準函式庫工具 `src/tw_target_scan.py`，用 TWSE 公開 MIS 行情端點抓上市/上櫃即時或最近行情。
+- 已新增 `config/watchlist.csv` 作為掃描股票清單，`config/target_prices.csv` 作為可追溯目標價匯入表。
+- 已新增 `docs/data-sources.md` 說明：台股行情可用公開交易所端點；券商目標價目前沒有集中免費官方 API，先以 CSV 保存來源、機構、日期與 URL，後續可再接公開新聞或付費資料源。
+- README 已加入執行方式：`py -3.11 src/tw_target_scan.py`，輸出在 `output/`；本機 `py -3` 會解析到 Windows Store alias 而失敗。
+- 已用 `py -3.11 src\tw_target_scan.py` 實際連 TWSE 公開行情端點驗證，成功產生 `output/tw_target_scan_summary.csv`、`output/tw_target_scan_detail.csv`、`output/tw_target_scan_report.md`。
+
 ## 目前目標
 
 - 建立可直接使用的乾淨專案起始結構，並讓後續 agent 能接續目前進度。
