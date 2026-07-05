@@ -504,6 +504,7 @@ def build_rows(
             "name": stock.name,
             "company_name": stock.company_name,
             "industry": stock.industry,
+            "industry_name": industry_name_for(stock.industry),
             "listing_date": stock.listing_date,
             "close_date": close_row.get("close_date", ""),
             "close": close_row.get("close"),
@@ -562,6 +563,7 @@ def column_order() -> list[str]:
         "name",
         "company_name",
         "industry",
+        "industry_name",
         "listing_date",
         "close_date",
         "close",
@@ -606,6 +608,7 @@ def exchange_column_order() -> list[str]:
         "name",
         "company_name",
         "industry",
+        "industry_name",
         "listing_date",
         "close_date",
         "close",
@@ -627,6 +630,7 @@ def stale_column_order() -> list[str]:
         "stock_id",
         "name",
         "industry",
+        "industry_name",
         "close_date",
         "close",
         "upside_to_mean_pct",
@@ -639,6 +643,13 @@ def stale_column_order() -> list[str]:
         "cnyes_status",
         "cnyes_error",
     ]
+
+
+def industry_name_for(value: Any) -> str:
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    return INDUSTRY_CODES.get(text, text)
 
 
 def industry_rows(rows: list[dict[str, Any]]) -> list[dict[str, str]]:
@@ -720,7 +731,7 @@ def column_label(column: str) -> str:
         "company_name": "公司全名",
         "industry": "產業別",
         "industry_code": "產業別代碼",
-        "industry_name": "產業別名稱",
+        "industry_name": "產業名稱",
         "industry_note": "產業別說明",
         "listing_date": "上市櫃日期",
         "close_date": "最新收盤日期",
@@ -805,7 +816,8 @@ def dictionary_rows() -> list[dict[str, str]]:
         "stock_id": "股票代號。",
         "name": "股票名稱。",
         "company_name": "公司全名，來自 TWSE/TPEx 基本資料。",
-        "industry": "產業別；可能是文字名稱，也可能是 TWSE/TPEx 產業代碼，可到「產業別說明」分頁查對照。",
+        "industry": "產業別；保留 TWSE/TPEx 基本資料原始值，可能是文字名稱或產業代碼。",
+        "industry_name": "產業名稱；由產業別代碼轉成中文名稱，若原本就是文字則沿用原值。",
         "listing_date": "上市或上櫃日期。",
         "close_date": "最新收盤行情日期，也是輸出檔名使用的主要日期。",
         "close": "TWSE 或 TPEx 每日收盤價，不是即時價。",
@@ -842,11 +854,6 @@ def guide_rows() -> list[dict[str, str]]:
         },
         {
             "section": "分頁",
-            "item": "交易所資料",
-            "description": "只放 TWSE/TPEx 來源欄位，市場欄直接顯示上市/上櫃，並包含基本資料、每日收盤行情與資料來源說明；不包含鉅亨目標價與估值計算。",
-        },
-        {
-            "section": "分頁",
             "item": "低估清單",
             "description": "用鉅亨平均共識目標價 join TWSE/TPEx 收盤價後計算；平均目標價潛在漲跌幅達低估門檻、且未被判定過舊或低信心。",
         },
@@ -876,14 +883,9 @@ def guide_rows() -> list[dict[str, str]]:
             "description": "補充主要欄位、門檻與資料來源；若要查內部欄位名稱，可看括號內英文 key。",
         },
         {
-            "section": "分頁",
-            "item": "產業別說明",
-            "description": "說明「產業別」欄位中的代碼對照；例如 24=半導體業、28=電子零組件業、33=農業科技業。",
-        },
-        {
             "section": "閱讀順序",
             "item": "建議先看",
-            "description": "先看「低估清單」與「高估清單」，再用「交易所資料」確認 TWSE/TPEx 原始欄位，最後到「全部股票」看 join 後完整資料。",
+            "description": "先看「低估清單」與「高估清單」，最後到「全部股票」看 join 後完整資料。",
         },
         {
             "section": "資料來源",
@@ -1002,8 +1004,8 @@ def guide_rows() -> list[dict[str, str]]:
         },
         {
             "section": "中文表頭",
-            "item": "產業別 / 上市櫃日期",
-            "description": "公司所屬產業與上市或上櫃日期；上市資料有時是文字，上櫃資料多為代碼，請搭配「產業別說明」分頁閱讀。",
+            "item": "產業別 / 產業名稱 / 上市櫃日期",
+            "description": "產業別保留交易所原始值，可能是代碼或文字；產業名稱是程式依代碼補出的中文名稱，放在產業別旁邊方便閱讀。",
         },
         {
             "section": "中文表頭",
@@ -1207,7 +1209,7 @@ def package_rels_xml() -> str:
     )
 
 
-def write_xlsx(path: Path, sheets: list[tuple[str, list[dict[str, Any]], list[str]]], active_sheet_index: int = 3) -> None:
+def write_xlsx(path: Path, sheets: list[tuple[str, list[dict[str, Any]], list[str]]], active_sheet_index: int = 2) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
         zf.writestr("[Content_Types].xml", content_types_xml(len(sheets)))
@@ -1220,6 +1222,9 @@ def write_xlsx(path: Path, sheets: list[tuple[str, list[dict[str, Any]], list[st
 
 
 def build_workbook_rows(rows: list[dict[str, Any]], statuses: list[SourceStatus], args: argparse.Namespace) -> list[tuple[str, list[dict[str, Any]], list[str]]]:
+    for row in rows:
+        if not row.get("industry_name"):
+            row["industry_name"] = industry_name_for(row.get("industry"))
     columns = column_order()
     undervalued = sorted(
         [row for row in rows if row.get("valuation_signal") == "undervalued"],
@@ -1238,14 +1243,12 @@ def build_workbook_rows(rows: list[dict[str, Any]], statuses: list[SourceStatus]
     ]
     return [
         ("\u4f7f\u7528\u8aaa\u660e", guide_rows(), ["section", "item", "description"]),
-        ("\u4ea4\u6613\u6240\u8cc7\u6599", exchange_rows(rows), exchange_column_order()),
         ("\u4f4e\u4f30\u6e05\u55ae", undervalued, columns),
         ("\u9ad8\u4f30\u6e05\u55ae", overvalued, columns),
         ("\u5168\u90e8\u80a1\u7968", rows, columns),
         ("\u904e\u820a\u4f4e\u4fe1\u5fc3", stale_low, stale_column_order()),
         ("\u6293\u53d6\u72c0\u614b", status_rows(statuses, rows), ["generated_at", "source", "status", "rows", "data_date", "url", "message"]),
         ("\u6b04\u4f4d\u8aaa\u660e", dictionary_rows(), ["field", "description"]),
-        ("\u7522\u696d\u5225\u8aaa\u660e", industry_rows(rows), ["industry_code", "industry_name", "industry_note"]),
     ]
 
 
