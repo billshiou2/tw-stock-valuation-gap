@@ -1054,6 +1054,10 @@ def cell_ref(row_idx: int, col_idx: int) -> str:
     return f"{letters}{row_idx}"
 
 
+def column_ref(col_idx: int) -> str:
+    return "".join(ch for ch in cell_ref(1, col_idx) if ch.isalpha())
+
+
 def xml_text(value: Any) -> str:
     return escape(str(value), {'"': "&quot;"})
 
@@ -1134,6 +1138,16 @@ def xlsx_sheet_xml(name: str, rows: list[dict[str, Any]], columns: list[str], ta
                 parts.append(f'<c r="{ref}" s="{style}" t="inlineStr"><is><t>{xml_text(value)}</t></is></c>')
         parts.append("</row>")
     parts.append("</sheetData>")
+    ignored_ranges = []
+    if max_row > 1:
+        for idx, column in enumerate(columns, start=1):
+            if column in {"stock_id", "industry"}:
+                letter = column_ref(idx)
+                ignored_ranges.append(f"{letter}2:{letter}{max_row}")
+    if ignored_ranges:
+        parts.append(
+            f'<ignoredErrors><ignoredError sqref="{" ".join(ignored_ranges)}" numberStoredAsText="1"/></ignoredErrors>'
+        )
     parts.append("</worksheet>")
     return "".join(parts)
 
