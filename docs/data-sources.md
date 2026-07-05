@@ -71,6 +71,8 @@ Observed useful fields:
 
 Cnyes target valuation is consensus data, not broker-by-broker target prices.
 
+The generated workbook labels `鉅亨資料來源` per stock. For target valuation, the scanner reads Cnyes embedded `targetValuation` and then checks that stock page for `FactSet` or `factSetEstimate`; only those rows are labeled `鉅亨/FactSet共識`. Rows without an explicit FactSet marker are labeled as Cnyes consensus with unclear source attribution. Cnyes page footers also mention Refinitiv for market quote information, but that is broader quote/market-data attribution rather than broker-by-broker target-price detail.
+
 ## Optional Intraday / Recent Quote Fallback
 
 TWSE MIS can query listed and OTC recent quote data:

@@ -30,6 +30,17 @@ TWSE_PROFILE_URL = "https://openapi.twse.com.tw/v1/opendata/t187ap03_L"
 TPEX_CLOSE_URL = "https://www.tpex.org.tw/openapi/v1/tpex_mainboard_daily_close_quotes"
 TPEX_PROFILE_URL = "https://www.tpex.org.tw/openapi/v1/mopsfin_t187ap03_O"
 CNYES_STOCK_URL = "https://www.cnyes.com/twstock/{stock_id}"
+CNYES_FACTSET_SOURCE = "鉅亨/FactSet共識"
+CNYES_UNSPECIFIED_SOURCE = "鉅亨共識(來源未明確標示)"
+CNYES_NO_TARGET_SOURCE = "鉅亨未提供目標價"
+CNYES_NOT_FETCHED_SOURCE = "鉅亨未抓取"
+CNYES_DATA_SOURCE_NOTE = (
+    "鉅亨網個股頁內嵌 targetValuation 共識目標價；"
+    "程式會逐檔檢查頁面是否出現 FactSet 或 factSetEstimate 註記，"
+    "有才標示為鉅亨/FactSet共識，否則標示為來源未明確標示。"
+    "頁尾 Refinitiv 聲明較偏一般報價與市場資訊來源。"
+    "此資料不是券商逐筆研究報告，也不列個別機構名稱。"
+)
 CNYES_USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
     "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36"
@@ -364,21 +375,29 @@ def select_universe(
     return selected
 
 
+def detect_cnyes_source(page_text: str) -> str:
+    if "factSetEstimate" in page_text or re.search(r"FactSet", page_text, flags=re.IGNORECASE):
+        return CNYES_FACTSET_SOURCE
+    return CNYES_UNSPECIFIED_SOURCE
+
+
 def extract_cnyes_target(stock_id: str, timeout: int) -> dict[str, Any]:
     url = CNYES_STOCK_URL.format(stock_id=stock_id)
     text = request_text(url, timeout=timeout, referer="https://www.cnyes.com/")
-    match = re.search(r'"targetValuation":(\{.*?\}|null),"factSetEstimate"', text)
+    source = detect_cnyes_source(text)
+    match = re.search(r'"targetValuation"\s*:\s*(\{.*?\}|null)\s*,', text)
     if not match:
-        return {"cnyes_status": "no_target_valuation", "cnyes_url": url}
+        return {"cnyes_status": "no_target_valuation", "cnyes_url": url, "cnyes_source": CNYES_NO_TARGET_SOURCE}
     if match.group(1) == "null":
-        return {"cnyes_status": "no_target_valuation", "cnyes_url": url}
+        return {"cnyes_status": "no_target_valuation", "cnyes_url": url, "cnyes_source": CNYES_NO_TARGET_SOURCE}
     try:
         data = json.loads(match.group(1))
     except json.JSONDecodeError as exc:
-        return {"cnyes_status": "parse_error", "cnyes_url": url, "cnyes_error": str(exc)}
+        return {"cnyes_status": "parse_error", "cnyes_url": url, "cnyes_source": source, "cnyes_error": str(exc)}
     return {
         "cnyes_url": url,
         "cnyes_status": "ok",
+        "cnyes_source": source,
         "target_date": clean_code(data.get("rateDate")),
         "target_high": to_float(data.get("feHigh")),
         "target_low": to_float(data.get("feLow")),
@@ -408,6 +427,7 @@ def extract_cnyes_target_with_retries(stock_id: str, timeout: int, retries: int,
     return {
         "cnyes_url": CNYES_STOCK_URL.format(stock_id=stock_id),
         "cnyes_status": "http_error",
+        "cnyes_source": CNYES_NOT_FETCHED_SOURCE,
         "cnyes_error": last_error,
         "cnyes_attempts": attempts,
     }
@@ -461,6 +481,7 @@ def fetch_cnyes_targets(
                     targets[remaining.stock_id] = {
                         "cnyes_url": CNYES_STOCK_URL.format(stock_id=remaining.stock_id),
                         "cnyes_status": "skipped_error_threshold",
+                        "cnyes_source": CNYES_NOT_FETCHED_SOURCE,
                         "cnyes_error": stopped_message,
                     }
                 break
@@ -474,6 +495,7 @@ def fetch_cnyes_targets(
             targets[stock.stock_id] = {
                 "cnyes_url": CNYES_STOCK_URL.format(stock_id=stock.stock_id),
                 "cnyes_status": "skipped_limit",
+                "cnyes_source": CNYES_NOT_FETCHED_SOURCE,
                 "cnyes_error": f"skipped by --cnyes-limit {limit}",
             }
 
@@ -585,6 +607,10 @@ def build_rows(
             "cnyes_status": cnyes_status,
             "cnyes_error": target_row.get("cnyes_error", ""),
             "cnyes_attempts": target_row.get("cnyes_attempts", ""),
+            "cnyes_source": target_row.get(
+                "cnyes_source",
+                CNYES_NOT_FETCHED_SOURCE if args.skip_cnyes else CNYES_NO_TARGET_SOURCE,
+            ),
         }
         row["upside_to_mean_pct"] = pct(row["target_mean"], row["close"])
         row["upside_to_median_pct"] = pct(row["target_median"], row["close"])
@@ -641,6 +667,7 @@ def column_order() -> list[str]:
         "cnyes_last",
         "cnyes_status",
         "cnyes_attempts",
+        "cnyes_source",
         "cnyes_url",
     ]
 
@@ -685,6 +712,7 @@ def stale_column_order() -> list[str]:
         "valuation_signal",
         "confidence_note",
         "cnyes_status",
+        "cnyes_source",
         "cnyes_url",
     ]
 
@@ -714,6 +742,7 @@ def lite_column_order() -> list[str]:
         "valuation_signal",
         "confidence_note",
         "cnyes_status",
+        "cnyes_source",
         "cnyes_url",
     ]
 
@@ -840,6 +869,7 @@ def column_label(column: str) -> str:
         "cnyes_status": "鉅亨抓取狀態",
         "cnyes_error": "鉅亨錯誤訊息",
         "cnyes_attempts": "鉅亨請求次數",
+        "cnyes_source": "鉅亨資料來源",
         "generated_at": "產出時間",
         "source": "資料源",
         "status": "狀態",
@@ -913,6 +943,7 @@ def dictionary_rows() -> list[dict[str, str]]:
         "valuation_signal": "估值訊號；Excel 顯示中文，例如低估、高估、中性、評價過舊、低信心、缺少目標價。程式內部仍用英文代碼。",
         "confidence_note": "可信度註記；Excel 顯示中文，例如資料新鮮，預估 33 家、評價過舊 120 天、預估家數僅 2 家、缺少鉅亨目標價。",
         "cnyes_status": "鉅亨抓取狀態；Excel 顯示中文，例如成功讀取鉅亨資料、鉅亨無目標價、抓取失敗、解析失敗、錯誤率過高已停止。",
+        "cnyes_source": CNYES_DATA_SOURCE_NOTE,
         "cnyes_url": "鉅亨個股頁網址，格式為 https://www.cnyes.com/twstock/{股票代號}；方便人工開啟來源頁，回查該股票頁內嵌的 targetValuation 資料。",
         "cnyes_attempts": "鉅亨個股頁嘗試抓取次數。",
     }
@@ -985,6 +1016,11 @@ def guide_rows() -> list[dict[str, str]]:
             "section": "資料來源",
             "item": "共識目標價",
             "description": "使用鉅亨個股頁內嵌 targetValuation 共識目標價，屬於彙總共識，不是券商逐筆研究報告。",
+        },
+        {
+            "section": "資料來源",
+            "item": "鉅亨資料來源",
+            "description": CNYES_DATA_SOURCE_NOTE,
         },
         {
             "section": "爬取方式",
@@ -1141,6 +1177,32 @@ def xml_text(value: Any) -> str:
     return escape(str(value), {'"': "&quot;"})
 
 
+def worksheet_hyperlinks(rows: list[dict[str, Any]], columns: list[str]) -> list[tuple[str, str, str]]:
+    if "cnyes_url" not in columns:
+        return []
+    col_idx = columns.index("cnyes_url") + 1
+    links = []
+    for data_idx, row in enumerate(rows, start=2):
+        url = str(row.get("cnyes_url") or "").strip()
+        if not url:
+            continue
+        links.append((cell_ref(data_idx, col_idx), f"rId{len(links) + 1}", url))
+    return links
+
+
+def worksheet_rels_xml(hyperlinks: list[tuple[str, str, str]]) -> str:
+    rels = [
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>',
+        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">',
+    ]
+    for _, rel_id, url in hyperlinks:
+        rels.append(
+            f'<Relationship Id="{xml_text(rel_id)}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="{xml_text(url)}" TargetMode="External"/>'
+        )
+    rels.append("</Relationships>")
+    return "".join(rels)
+
+
 VALUATION_SIGNAL_LABELS = {
     "undervalued": "低估",
     "overvalued": "高估",
@@ -1232,6 +1294,7 @@ def xlsx_sheet_xml(
     shared_strings: dict[str, int],
     tab_selected: bool = False,
 ) -> str:
+    hyperlinks = worksheet_hyperlinks(rows, columns)
     table = [[column_label(column) for column in columns]] + [
         [display_cell_value(col, row.get(col, "")) for col in columns] for row in rows
     ]
@@ -1251,6 +1314,8 @@ def xlsx_sheet_xml(
         width = min(42, max(10, len(label) * 2 + 2))
         if column in {"cnyes_url", "company_name", "cnyes_error", "confidence_note"}:
             width = 28
+        if column == "cnyes_source":
+            width = 20
         parts.append(f'<col min="{idx}" max="{idx}" width="{width}" customWidth="1"/>')
     parts.append("</cols><sheetData>")
 
@@ -1292,6 +1357,8 @@ def xlsx_sheet_xml(
                 style = 4
             elif row_idx > 1 and column in decimal_cols:
                 style = 2
+            elif row_idx > 1 and column == "cnyes_url" and value:
+                style = 5
 
             if value is None or value == "":
                 parts.append(f'<c r="{ref}" s="{style}"/>')
@@ -1301,6 +1368,11 @@ def xlsx_sheet_xml(
                 parts.append(f'<c r="{ref}" s="{style}" t="s"><v>{shared_strings[str(value)]}</v></c>')
         parts.append("</row>")
     parts.append("</sheetData>")
+    if hyperlinks:
+        parts.append("<hyperlinks>")
+        for ref, rel_id, _ in hyperlinks:
+            parts.append(f'<hyperlink ref="{xml_text(ref)}" r:id="{xml_text(rel_id)}"/>')
+        parts.append("</hyperlinks>")
     ignored_ranges = []
     if max_row > 1:
         for idx, column in enumerate(columns, start=1):
@@ -1378,11 +1450,11 @@ def styles_xml() -> str:
     return """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
 <numFmts count="3"><numFmt numFmtId="164" formatCode="#,##0.00"/><numFmt numFmtId="165" formatCode="0.00%"/><numFmt numFmtId="166" formatCode="#,##0"/></numFmts>
-<fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts>
+<fonts count="3"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font><font><u/><color rgb="FF0563C1"/><sz val="11"/><name val="Calibri"/></font></fonts>
 <fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills>
 <borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>
 <cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
-<cellXfs count="5"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf><xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/><xf numFmtId="165" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/><xf numFmtId="166" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/></cellXfs>
+<cellXfs count="6"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf><xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/><xf numFmtId="165" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/><xf numFmtId="166" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/><xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1"/></cellXfs>
 <cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>
 </styleSheet>"""
 
@@ -1455,10 +1527,16 @@ def write_xlsx(path: Path, sheets: list[tuple[str, list[dict[str, Any]], list[st
         if shared_strings:
             zf.writestr("xl/sharedStrings.xml", shared_strings_xml(shared_strings, shared_string_count))
         for idx, (name, rows, columns) in enumerate(sheets, start=1):
+            hyperlinks = worksheet_hyperlinks(rows, columns)
             zf.writestr(
                 posixpath.join("xl", "worksheets", f"sheet{idx}.xml"),
                 xlsx_sheet_xml(name, rows, columns, shared_strings, tab_selected=idx == active_sheet_index),
             )
+            if hyperlinks:
+                zf.writestr(
+                    posixpath.join("xl", "worksheets", "_rels", f"sheet{idx}.xml.rels"),
+                    worksheet_rels_xml(hyperlinks),
+                )
 
 
 def build_workbook_rows(rows: list[dict[str, Any]], statuses: list[SourceStatus], args: argparse.Namespace) -> list[tuple[str, list[dict[str, Any]], list[str]]]:
@@ -1513,6 +1591,7 @@ def build_lite_workbook_rows(rows: list[dict[str, Any]], statuses: list[SourceSt
     )
     return [
         ("\u4f7f\u7528\u8aaa\u660e", guide_rows(), ["section", "item", "description"]),
+        ("\u6b04\u4f4d\u8aaa\u660e", dictionary_rows(), ["field", "description"]),
         ("\u4f4e\u4f30\u6e05\u55ae", undervalued, columns),
         ("\u9ad8\u4f30\u6e05\u55ae", overvalued, columns),
         ("\u5168\u90e8\u80a1\u7968", rows, columns),
