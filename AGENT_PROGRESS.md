@@ -2,6 +2,7 @@
 
 ## 2026-07-04
 
+- Moved full workbook `欄位說明` next to `使用說明`, making the first sheets `使用說明`, `欄位說明`, `低估清單`. Updated `write_xlsx()` to select `低估清單` by sheet name instead of a fixed sheet index; verified sample `output/tw_valuation_gap_20260703_162605_watchlist_no_cnyes.xlsx` has activeSheet `低估清單`.
 - Generated a fresh watchlist sample for review after guide/dictionary cleanup: `output/tw_valuation_gap_20260703_161930_watchlist.xlsx` and `output/tw_valuation_gap_20260703_161930_watchlist_lite.xlsx`. Watchlist rows were 2330, 2317, 2454; Cnyes fetch was 3/3 ok. Verified sheets include `使用說明`, `欄位說明` in full output, the guide pointer `逐欄查詢`, dictionary label `平均目標價 (target_mean)`, and `鉅亨個股頁`.
 - Cleaned up overlap between Excel `使用說明` and `欄位說明`: removed repeated per-column `中文表頭` explanations from the guide, added a concise pointer to the dictionary sheet, and changed dictionary `欄位` values to show the Chinese header with the internal key in parentheses, such as `平均目標價 (target_mean)`. README wording now describes user-facing Chinese statuses instead of raw internal codes.
 - Clarified average target price source in Excel `使用說明` and README: `平均目標價` comes from Cnyes embedded `targetValuation.feMean`, not from averaging high/low targets; manual checks should use the Cnyes stock page `預估` tab, but the UI may not literally show the phrase `平均目標價`.

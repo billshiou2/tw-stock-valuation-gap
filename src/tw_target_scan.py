@@ -1438,10 +1438,12 @@ def package_rels_xml() -> str:
     )
 
 
-def write_xlsx(path: Path, sheets: list[tuple[str, list[dict[str, Any]], list[str]]], active_sheet_index: int = 2) -> None:
+def write_xlsx(path: Path, sheets: list[tuple[str, list[dict[str, Any]], list[str]]], active_sheet_index: int | None = None) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     shared_strings, shared_string_count = collect_shared_strings(sheets)
     sheet_names = [name for name, _, _ in sheets]
+    if active_sheet_index is None:
+        active_sheet_index = sheet_names.index("低估清單") + 1 if "低估清單" in sheet_names else 1
     with zipfile.ZipFile(path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
         zf.writestr("[Content_Types].xml", content_types_xml(len(sheets), has_shared_strings=bool(shared_strings)))
         zf.writestr("_rels/.rels", package_rels_xml())
@@ -1486,12 +1488,12 @@ def build_workbook_rows(rows: list[dict[str, Any]], statuses: list[SourceStatus]
     ]
     return [
         ("\u4f7f\u7528\u8aaa\u660e", guide_rows(), ["section", "item", "description"]),
+        ("\u6b04\u4f4d\u8aaa\u660e", dictionary_rows(), ["field", "description"]),
         ("\u4f4e\u4f30\u6e05\u55ae", undervalued, columns),
         ("\u9ad8\u4f30\u6e05\u55ae", overvalued, columns),
         ("\u5168\u90e8\u80a1\u7968", rows, columns),
         ("\u904e\u820a\u4f4e\u4fe1\u5fc3", stale_low, stale_column_order()),
         ("\u6293\u53d6\u72c0\u614b", status_rows(statuses, rows), ["generated_at", "source", "status", "rows", "data_date", "url", "message"]),
-        ("\u6b04\u4f4d\u8aaa\u660e", dictionary_rows(), ["field", "description"]),
     ]
 
 
