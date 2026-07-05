@@ -626,7 +626,7 @@ def column_label(column: str) -> str:
         "company_name": "公司全名",
         "industry": "產業別",
         "listing_date": "上市櫃日期",
-        "close_date": "收盤日期",
+        "close_date": "最新收盤日期",
         "close": "收盤價",
         "change": "漲跌",
         "open": "開盤價",
@@ -710,7 +710,7 @@ def dictionary_rows() -> list[dict[str, str]]:
         "company_name": "公司全名，來自 TWSE/TPEx 基本資料。",
         "industry": "產業別，來自 TWSE/TPEx 基本資料。",
         "listing_date": "上市或上櫃日期。",
-        "close_date": "收盤行情日期，也是輸出檔名使用的主要日期。",
+        "close_date": "最新收盤行情日期，也是輸出檔名使用的主要日期。",
         "close": "TWSE 或 TPEx 每日收盤價，不是即時價。",
         "trade_volume": "成交股數，Excel 以千分位顯示。",
         "trade_value": "成交金額，Excel 以千分位顯示。",
@@ -727,7 +727,7 @@ def dictionary_rows() -> list[dict[str, str]]:
         "upside_to_median_pct": "鉅亨中位目標價 target_median / TWSE或TPEx 收盤價 close - 1。",
         "upside_to_high_pct": "鉅亨最高目標價 target_high / TWSE或TPEx 收盤價 close - 1。",
         "downside_to_low_pct": "鉅亨最低目標價 target_low / TWSE或TPEx 收盤價 close - 1。",
-        "valuation_age_days": "TWSE或TPEx 收盤日期 close_date - 鉅亨目標價日期 target_date；天數越大代表資料越舊。",
+        "valuation_age_days": "TWSE或TPEx 最新收盤日期 close_date - 鉅亨目標價日期 target_date；天數越大代表資料越舊。",
         "valuation_signal": "估值訊號：undervalued、overvalued、neutral、stale、low_confidence、missing_target。",
         "confidence_note": "信心註記，例如 fresh_33_estimates、stale_120_days、only_2_estimates、missing_cnyes_target。",
         "cnyes_status": "鉅亨抓取狀態：ok、no_target_valuation、parse_error、http_error、skipped_limit、skipped_error_threshold 等。",
@@ -786,7 +786,7 @@ def guide_rows() -> list[dict[str, str]]:
         {
             "section": "資料來源",
             "item": "收盤價",
-            "description": "使用 TWSE/TPEx 每日收盤行情，不是即時報價；檔名日期代表本次報表使用的收盤日期。",
+            "description": "使用 TWSE/TPEx 每日收盤行情，不是即時報價；檔名日期代表本次報表使用的最新收盤日期。",
         },
         {
             "section": "資料來源",
@@ -816,7 +816,7 @@ def guide_rows() -> list[dict[str, str]]:
         {
             "section": "公式",
             "item": "評價距今天數 (valuation_age_days)",
-            "description": "TWSE或TPEx 收盤日期 close_date - 鉅亨目標價日期 target_date；天數越大代表共識目標價越舊。",
+            "description": "TWSE或TPEx 最新收盤日期 close_date - 鉅亨目標價日期 target_date；天數越大代表共識目標價越舊。",
         },
         {
             "section": "判斷",
@@ -845,7 +845,7 @@ def guide_rows() -> list[dict[str, str]]:
         },
         {
             "section": "中文表頭",
-            "item": "收盤日期 / 收盤價 / 漲跌 / 開盤價 / 最高價 / 最低價",
+            "item": "最新收盤日期 / 收盤價 / 漲跌 / 開盤價 / 最高價 / 最低價",
             "description": "交易所每日收盤行情欄位；數字欄已套用千分位或小數格式。",
         },
         {

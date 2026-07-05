@@ -2,6 +2,7 @@
 
 ## 2026-07-04
 
+- Renamed the Excel display header for `close_date` from `收盤日期` to `最新收盤日期`, and updated guide/dictionary wording to match. Refreshed artifact: `output/tw_valuation_gap_20260703_readable_latestclose.xlsx`, verified no `autoFilter`, 1980 all-stock rows, 78 undervalued rows, and 35 overvalued rows.
 - Changed Excel display for the `市場` column from internal codes (`tse`/`otc`) to user-facing values (`上市`/`上櫃`) while keeping internal code handling for joins. Refreshed artifact: `output/tw_valuation_gap_20260703_readable.xlsx`, verified no `autoFilter`, 1980 all-stock rows, 78 undervalued rows, and 35 overvalued rows.
 - Removed default Excel `autoFilter` output after the user noted the workbook does not need to open in filter mode. A refreshed artifact was written to `output/tw_valuation_gap_20260703_sources_nofilter.xlsx`; verification found no `autoFilter` XML parts and retained 1980 all-stock rows, 78 undervalued rows, and 35 overvalued rows.
 - Added a new Excel worksheet `交易所資料` to separate TWSE/TPEx-only data from the joined valuation view. New generated workbooks now open on `低估清單` as sheet 3. Because the prior full workbook was locked by Excel, a refreshed full artifact was written to `output/tw_valuation_gap_20260703_sources.xlsx` with 1980 all-stock rows, 78 undervalued rows, and 35 overvalued rows.
