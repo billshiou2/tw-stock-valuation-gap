@@ -5,6 +5,11 @@
 - `全部股票`: one row per listed/OTC stock, combining exchange fields, Cnyes fields, valuation-gap calculations, and fetch status. The lists include `產業別` plus adjacent `產業名稱` for readable industry names.
 - Main stock lists end with `鉅亨個股頁`, generated as `https://www.cnyes.com/twstock/{股票代號}` for manual source checks.
 
+## Sample workbook
+
+- `output/tw_valuation_gap_20260703_172748.xlsx` is intentionally tracked as a representative full-market sample so users can preview the workbook tabs, columns, and formatting before running the scanner.
+- Day-to-day generated files under `output/` are still ignored by default; only this sample workbook is kept in Git.
+
 # 台股估值落差 Excel 篩選器
 
 這個專案用上市與上櫃每日收盤行情，套疊鉅亨網 Cnyes 的共識目標價，產出 Excel 報表，幫助快速查看哪些股票相對共識目標價可能明顯低估或高估。
