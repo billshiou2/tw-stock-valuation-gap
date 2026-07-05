@@ -23,6 +23,7 @@
 - Updated Excel output formatting after user asked for direct Chinese headers and thousands separators. `src/tw_target_scan.py` now keeps internal English keys but writes Chinese headers to `.xlsx`; prices/targets use `#,##0.00`, integer quantities/counts use `#,##0`, and percentage fields remain `0.00%`.
 - Rewrote the existing full output workbook `output/tw_valuation_gap_20260703.xlsx` in place without re-crawling data so it now has Chinese headers and thousands number formats.
 - Updated Excel header styling after user asked for centered headers and no dotted-looking background fill. Header cells now use bold centered text with no fill; existing full workbook styles were refreshed in place without re-crawling.
+- Localized Excel worksheet names after user asked for Chinese sheet tabs. New generated workbooks use `低估清單`, `高估清單`, `全部股票`, `過舊低信心`, `抓取狀態`, `使用說明`, and `欄位說明`; existing full workbook sheet names were updated in place without re-crawling.
 
 ## 2026-06-12
 

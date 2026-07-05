@@ -908,13 +908,13 @@ def build_workbook_rows(rows: list[dict[str, Any]], statuses: list[SourceStatus]
         or row.get("cnyes_status") != "ok"
     ]
     return [
-        ("Undervalued", undervalued, columns),
-        ("Overvalued", overvalued, columns),
-        ("All_Stocks", rows, columns),
-        ("Stale_or_Low_Confidence", stale_low, columns),
-        ("Fetch_Status", status_rows(statuses, rows), ["generated_at", "source", "status", "rows", "data_date", "url", "message"]),
-        ("Guide", guide_rows(), ["section", "item", "description"]),
-        ("Data_Dictionary", dictionary_rows(), ["field", "description"]),
+        ("\u4f4e\u4f30\u6e05\u55ae", undervalued, columns),
+        ("\u9ad8\u4f30\u6e05\u55ae", overvalued, columns),
+        ("\u5168\u90e8\u80a1\u7968", rows, columns),
+        ("\u904e\u820a\u4f4e\u4fe1\u5fc3", stale_low, columns),
+        ("\u6293\u53d6\u72c0\u614b", status_rows(statuses, rows), ["generated_at", "source", "status", "rows", "data_date", "url", "message"]),
+        ("\u4f7f\u7528\u8aaa\u660e", guide_rows(), ["section", "item", "description"]),
+        ("\u6b04\u4f4d\u8aaa\u660e", dictionary_rows(), ["field", "description"]),
     ]
 
 
