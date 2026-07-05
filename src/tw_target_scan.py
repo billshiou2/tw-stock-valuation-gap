@@ -890,6 +890,16 @@ def guide_rows() -> list[dict[str, str]]:
         },
         {
             "section": "資料來源",
+            "item": "TWSE 是什麼",
+            "description": "TWSE 是台灣證券交易所（Taiwan Stock Exchange）；本報表中市場顯示為「上市」的股票，基本資料與每日收盤行情主要來自 TWSE。",
+        },
+        {
+            "section": "資料來源",
+            "item": "TPEx 是什麼",
+            "description": "TPEx 是證券櫃檯買賣中心（Taipei Exchange）；本報表中市場顯示為「上櫃」的股票，基本資料與每日收盤行情主要來自 TPEx。",
+        },
+        {
+            "section": "資料來源",
             "item": "共識目標價",
             "description": "使用鉅亨個股頁內嵌 targetValuation 共識目標價，屬於彙總共識，不是券商逐筆研究報告。",
         },
