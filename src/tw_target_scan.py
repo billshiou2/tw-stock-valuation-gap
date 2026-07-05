@@ -736,16 +736,17 @@ def xml_text(value: Any) -> str:
     return escape(str(value), {'"': "&quot;"})
 
 
-def xlsx_sheet_xml(name: str, rows: list[dict[str, Any]], columns: list[str]) -> str:
+def xlsx_sheet_xml(name: str, rows: list[dict[str, Any]], columns: list[str], tab_selected: bool = False) -> str:
     table = [[column_label(column) for column in columns]] + [[row.get(col, "") for col in columns] for row in rows]
     max_row = max(1, len(table))
     max_col = max(1, len(columns))
+    selected_attr = ' tabSelected="1"' if tab_selected else ""
     parts = [
         '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>',
         '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"',
         ' xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">',
         f'<dimension ref="A1:{cell_ref(max_row, max_col)}"/>',
-        '<sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>',
+        f'<sheetViews><sheetView workbookViewId="0"{selected_attr}><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>',
         "<cols>",
     ]
     for idx, column in enumerate(columns, start=1):
@@ -808,7 +809,7 @@ def xlsx_sheet_xml(name: str, rows: list[dict[str, Any]], columns: list[str]) ->
     return "".join(parts)
 
 
-def workbook_xml(sheet_names: list[str]) -> str:
+def workbook_xml(sheet_names: list[str], active_tab: int = 0) -> str:
     sheets = "".join(
         f'<sheet name="{xml_text(name)}" sheetId="{idx}" r:id="rId{idx}"/>'
         for idx, name in enumerate(sheet_names, start=1)
@@ -817,6 +818,7 @@ def workbook_xml(sheet_names: list[str]) -> str:
         '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
         '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"'
         ' xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+        f'<bookViews><workbookView activeTab="{active_tab}"/></bookViews>'
         f"<sheets>{sheets}</sheets></workbook>"
     )
 
@@ -878,16 +880,16 @@ def package_rels_xml() -> str:
     )
 
 
-def write_xlsx(path: Path, sheets: list[tuple[str, list[dict[str, Any]], list[str]]]) -> None:
+def write_xlsx(path: Path, sheets: list[tuple[str, list[dict[str, Any]], list[str]]], active_sheet_index: int = 2) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
         zf.writestr("[Content_Types].xml", content_types_xml(len(sheets)))
         zf.writestr("_rels/.rels", package_rels_xml())
-        zf.writestr("xl/workbook.xml", workbook_xml([name for name, _, _ in sheets]))
+        zf.writestr("xl/workbook.xml", workbook_xml([name for name, _, _ in sheets], active_tab=max(0, active_sheet_index - 1)))
         zf.writestr("xl/_rels/workbook.xml.rels", workbook_rels_xml(len(sheets)))
         zf.writestr("xl/styles.xml", styles_xml())
         for idx, (name, rows, columns) in enumerate(sheets, start=1):
-            zf.writestr(posixpath.join("xl", "worksheets", f"sheet{idx}.xml"), xlsx_sheet_xml(name, rows, columns))
+            zf.writestr(posixpath.join("xl", "worksheets", f"sheet{idx}.xml"), xlsx_sheet_xml(name, rows, columns, tab_selected=idx == active_sheet_index))
 
 
 def build_workbook_rows(rows: list[dict[str, Any]], statuses: list[SourceStatus], args: argparse.Namespace) -> list[tuple[str, list[dict[str, Any]], list[str]]]:
@@ -908,12 +910,12 @@ def build_workbook_rows(rows: list[dict[str, Any]], statuses: list[SourceStatus]
         or row.get("cnyes_status") != "ok"
     ]
     return [
+        ("\u4f7f\u7528\u8aaa\u660e", guide_rows(), ["section", "item", "description"]),
         ("\u4f4e\u4f30\u6e05\u55ae", undervalued, columns),
         ("\u9ad8\u4f30\u6e05\u55ae", overvalued, columns),
         ("\u5168\u90e8\u80a1\u7968", rows, columns),
         ("\u904e\u820a\u4f4e\u4fe1\u5fc3", stale_low, columns),
         ("\u6293\u53d6\u72c0\u614b", status_rows(statuses, rows), ["generated_at", "source", "status", "rows", "data_date", "url", "message"]),
-        ("\u4f7f\u7528\u8aaa\u660e", guide_rows(), ["section", "item", "description"]),
         ("\u6b04\u4f4d\u8aaa\u660e", dictionary_rows(), ["field", "description"]),
     ]
 

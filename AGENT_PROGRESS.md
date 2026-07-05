@@ -24,6 +24,7 @@
 - Rewrote the existing full output workbook `output/tw_valuation_gap_20260703.xlsx` in place without re-crawling data so it now has Chinese headers and thousands number formats.
 - Updated Excel header styling after user asked for centered headers and no dotted-looking background fill. Header cells now use bold centered text with no fill; existing full workbook styles were refreshed in place without re-crawling.
 - Localized Excel worksheet names after user asked for Chinese sheet tabs. New generated workbooks use `低估清單`, `高估清單`, `全部股票`, `過舊低信心`, `抓取狀態`, `使用說明`, and `欄位說明`; existing full workbook sheet names were updated in place without re-crawling.
+- Reordered Excel tabs after user asked to put `使用說明` first while opening by default on `低估清單`. New generated workbooks place `使用說明` first, `低估清單` second, and set `activeTab=1`; existing full workbook was updated in place without re-crawling.
 
 ## 2026-06-12
 
