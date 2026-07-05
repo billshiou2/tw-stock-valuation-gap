@@ -22,7 +22,7 @@ py -3.11 src/tw_target_scan.py
 run_full_scan.bat
 ```
 
-`run_full_scan.bat` 會用比較保守的鉅亨抓取速度：每檔間隔 1.0 秒、HTTP 失敗最多重試 2 次、每 25 檔顯示一次進度。全市場約 1980 檔，完整跑完通常需要 30 分鐘以上，實際時間會依網路狀況浮動。
+`run_full_scan.bat` 會用比較保守的鉅亨抓取速度：每檔間隔 1.0 秒、HTTP 失敗最多重試 2 次、每 25 檔顯示一次進度。全市場約 1980 檔，完整跑完通常需要 30 分鐘以上，實際時間會依網路狀況浮動。bat 預設會同時產完整檔與 `_lite` 輕量檔；日常閱讀建議先開 `_lite`。
 
 若要在終端機或排程中執行且不要停在 `pause`，可以用：
 
@@ -34,6 +34,7 @@ run_full_scan.bat --no-pause
 
 ```text
 output/tw_valuation_gap_20260703.xlsx
+output/tw_valuation_gap_20260703_lite.xlsx
 ```
 
 Excel 內的正式資料表會使用中文表頭；程式內部仍保留英文欄位 key 以維持計算與排序穩定。股價、目標價、成交股數(股)、成交金額(元)、成交筆數(筆)、家數等數字欄位會套用千分位格式。
@@ -68,6 +69,7 @@ py -3.11 src/tw_target_scan.py --cnyes-limit 20 --cnyes-delay 0.5 --cnyes-retrie
 - `--overvalued-threshold -10`：平均目標價低於收盤價 10% 以上視為高估。
 - `--stale-days 90`：鉅亨評價日期超過 90 天視為過舊。
 - `--min-estimates 3`：預估家數少於 3 家視為低可信度。
+- `--excel-output full|lite|both`：預設 `both`，同時輸出完整檔與 `_lite` 輕量檔。
 - `--skip-cnyes`：略過鉅亨網抓取。
 - `--cnyes-delay 0.5`：每檔股票抓鉅亨網之間的秒數間隔；全市場建議先用預設或更慢。
 - `--cnyes-retries 2`：鉅亨單檔 HTTP 失敗時最多重試 2 次。
@@ -75,6 +77,20 @@ py -3.11 src/tw_target_scan.py --cnyes-limit 20 --cnyes-delay 0.5 --cnyes-retrie
 - `--cnyes-progress-every 50`：每抓 50 檔在終端機顯示一次鉅亨抓取狀態。
 - `--cnyes-limit 20`：只測前 20 檔鉅亨資料，其餘股票保留但標示 `skipped_limit`。
 - `--cnyes-error-stop-after 30` / `--cnyes-error-stop-rate 0.5`：前 30 檔後若 HTTP error 達 50% 以上，停止後續鉅亨請求並標示 `skipped_error_threshold`。
+
+## `.env` 設定
+
+可複製 `.env.example` 的格式到本機 `.env`。`.env` 不提交 Git，可放門檻與輸出模式。
+
+常用設定：
+
+- `TW_STOCK_UNDERVALUED_THRESHOLD=20.0`：平均目標價高於收盤價 20% 以上才算低估。
+- `TW_STOCK_OVERVALUED_THRESHOLD=-10.0`：平均目標價低於收盤價 10% 以上才算高估。
+- `TW_STOCK_STALE_DAYS=90`：鉅亨評價日期超過 90 天視為過舊。
+- `TW_STOCK_MIN_ESTIMATES=3`：預估家數少於 3 家視為低信心。
+- `TW_STOCK_EXCEL_OUTPUT=both`：產完整檔與 `_lite` 輕量檔；也可設 `full` 或 `lite`。
+
+CLI 參數優先於 `.env`。例如命令列指定 `--stale-days 120` 時，會覆蓋 `.env` 的 `TW_STOCK_STALE_DAYS`。
 
 ## Excel 工作表
 
@@ -85,6 +101,8 @@ py -3.11 src/tw_target_scan.py --cnyes-limit 20 --cnyes-delay 0.5 --cnyes-retrie
 - `過舊低信心`：評價過舊、預估家數太少、或缺少鉅亨目標價的股票。
 - `抓取狀態`：各資料源抓取狀態、筆數與資料日期。
 - `欄位說明`：欄位與門檻說明。
+
+低估/高估清單會先排除資料品質不足的股票：缺鉅亨目標價、評價超過 `TW_STOCK_STALE_DAYS`、或預估家數少於 `TW_STOCK_MIN_ESTIMATES`，都不會放進主要低估/高估清單，而會標示為 `missing_target`、`stale` 或 `low_confidence`。
 
 ## 資料源
 

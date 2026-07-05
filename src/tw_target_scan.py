@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import os
 import posixpath
 import re
 import sys
@@ -34,6 +35,23 @@ CNYES_USER_AGENT = (
     "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36"
 )
 MARKETS = ("tse", "otc")
+
+ENV_DEFAULTS = {
+    "TW_STOCK_UNIVERSE": "all",
+    "TW_STOCK_MARKET": "all",
+    "TW_STOCK_UNDERVALUED_THRESHOLD": "20.0",
+    "TW_STOCK_OVERVALUED_THRESHOLD": "-10.0",
+    "TW_STOCK_STALE_DAYS": "90",
+    "TW_STOCK_MIN_ESTIMATES": "3",
+    "TW_STOCK_EXCEL_OUTPUT": "both",
+    "TW_STOCK_CNYES_DELAY": "0.5",
+    "TW_STOCK_CNYES_RETRIES": "2",
+    "TW_STOCK_CNYES_BACKOFF": "2.0",
+    "TW_STOCK_CNYES_PROGRESS_EVERY": "50",
+    "TW_STOCK_CNYES_LIMIT": "0",
+    "TW_STOCK_CNYES_ERROR_STOP_AFTER": "30",
+    "TW_STOCK_CNYES_ERROR_STOP_RATE": "0.5",
+}
 
 INDUSTRY_CODES = {
     "01": "水泥工業",
@@ -99,6 +117,34 @@ def read_csv(path: Path) -> list[dict[str, str]]:
         return []
     with path.open("r", encoding="utf-8-sig", newline="") as fh:
         return [{k: (v or "").strip() for k, v in row.items()} for row in csv.DictReader(fh)]
+
+
+def load_env_file(path: Path = Path(".env")) -> dict[str, str]:
+    values: dict[str, str] = {}
+    if not path.exists():
+        return values
+    for raw_line in path.read_text(encoding="utf-8-sig").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip().strip('"').strip("'")
+        if key:
+            values[key] = value
+    return values
+
+
+def env_value(env: dict[str, str], key: str) -> str:
+    return os.environ.get(key) or env.get(key) or ENV_DEFAULTS[key]
+
+
+def env_float(env: dict[str, str], key: str) -> float:
+    return float(env_value(env, key))
+
+
+def env_int(env: dict[str, str], key: str) -> int:
+    return int(float(env_value(env, key)))
 
 
 def request_text(url: str, timeout: int = 30, referer: str = "") -> str:
@@ -641,6 +687,34 @@ def stale_column_order() -> list[str]:
     ]
 
 
+def lite_column_order() -> list[str]:
+    return [
+        "market",
+        "stock_id",
+        "name",
+        "company_name",
+        "industry_name",
+        "close_date",
+        "close",
+        "change",
+        "trade_volume",
+        "trade_value",
+        "target_date",
+        "target_mean",
+        "target_median",
+        "target_high",
+        "target_low",
+        "upside_to_mean_pct",
+        "upside_to_median_pct",
+        "downside_to_low_pct",
+        "valuation_age_days",
+        "num_est",
+        "valuation_signal",
+        "confidence_note",
+        "cnyes_status",
+    ]
+
+
 def industry_name_for(value: Any) -> str:
     text = str(value or "").strip()
     if not text:
@@ -992,6 +1066,26 @@ def guide_rows() -> list[dict[str, str]]:
             "section": "判斷",
             "item": "估值訊號 (valuation_signal)",
             "description": "undervalued=低估、overvalued=高估、neutral=中性、stale=過舊、low_confidence=低信心、missing_target=缺目標價。",
+        },
+        {
+            "section": "判斷",
+            "item": "為何沒進低估/高估",
+            "description": "程式會先檢查資料品質：缺目標價、評價日期超過 stale-days、或預估家數少於 min-estimates 時，會先歸到 missing_target/stale/low_confidence，不放進主要低估或高估清單。",
+        },
+        {
+            "section": "判斷",
+            "item": "判斷順序",
+            "description": "順序是：鉅亨狀態與目標價是否存在 -> 評價是否過舊 -> 預估家數是否足夠 -> 才用平均目標價潛在漲跌幅判斷 undervalued / overvalued / neutral。",
+        },
+        {
+            "section": "設定",
+            "item": ".env 門檻設定",
+            "description": "可在 .env 設定 TW_STOCK_UNDERVALUED_THRESHOLD、TW_STOCK_OVERVALUED_THRESHOLD、TW_STOCK_STALE_DAYS、TW_STOCK_MIN_ESTIMATES；CLI 參數若有指定會覆蓋 .env。",
+        },
+        {
+            "section": "設定",
+            "item": "Excel 輸出設定",
+            "description": "TW_STOCK_EXCEL_OUTPUT 可設 full、lite、both；預設 both 會同時產完整檔與 _lite 輕量檔。",
         },
         {
             "section": "判斷",
@@ -1379,24 +1473,60 @@ def build_workbook_rows(rows: list[dict[str, Any]], statuses: list[SourceStatus]
     ]
 
 
+def build_lite_workbook_rows(rows: list[dict[str, Any]], statuses: list[SourceStatus], args: argparse.Namespace) -> list[tuple[str, list[dict[str, Any]], list[str]]]:
+    for row in rows:
+        if not row.get("industry_name"):
+            row["industry_name"] = industry_name_for(row.get("industry"))
+    columns = lite_column_order()
+    undervalued = sorted(
+        [row for row in rows if row.get("valuation_signal") == "undervalued"],
+        key=lambda row: row.get("upside_to_mean_pct") or -999,
+        reverse=True,
+    )
+    overvalued = sorted(
+        [row for row in rows if row.get("valuation_signal") == "overvalued"],
+        key=lambda row: row.get("upside_to_mean_pct") or 999,
+    )
+    return [
+        ("\u4f7f\u7528\u8aaa\u660e", guide_rows(), ["section", "item", "description"]),
+        ("\u4f4e\u4f30\u6e05\u55ae", undervalued, columns),
+        ("\u9ad8\u4f30\u6e05\u55ae", overvalued, columns),
+        ("\u5168\u90e8\u80a1\u7968", rows, columns),
+        ("\u6293\u53d6\u72c0\u614b", status_rows(statuses, rows), ["generated_at", "source", "status", "rows", "data_date", "url", "message"]),
+    ]
+
+
+def write_xlsx_with_fallback(path: Path, sheets: list[tuple[str, list[dict[str, Any]], list[str]]]) -> Path:
+    try:
+        write_xlsx(path, sheets)
+        return path
+    except PermissionError:
+        timestamp = datetime.now().strftime("%H%M%S")
+        fallback = path.with_name(f"{path.stem}_{timestamp}{path.suffix}")
+        write_xlsx(fallback, sheets)
+        return fallback
+
+
 def parse_args(argv: list[str]) -> argparse.Namespace:
+    env = load_env_file()
     parser = argparse.ArgumentParser(description="Build a Taiwan stock valuation-gap Excel report.")
-    parser.add_argument("--universe", choices=["all", "watchlist"], default="all")
-    parser.add_argument("--market", choices=["all", "tse", "otc"], default="all")
+    parser.add_argument("--universe", choices=["all", "watchlist"], default=env_value(env, "TW_STOCK_UNIVERSE"))
+    parser.add_argument("--market", choices=["all", "tse", "otc"], default=env_value(env, "TW_STOCK_MARKET"))
     parser.add_argument("--watchlist", default="config/watchlist.csv")
     parser.add_argument("--output-dir", default="output")
-    parser.add_argument("--undervalued-threshold", type=float, default=20.0)
-    parser.add_argument("--overvalued-threshold", type=float, default=-10.0)
-    parser.add_argument("--stale-days", type=int, default=90)
-    parser.add_argument("--min-estimates", type=int, default=3)
+    parser.add_argument("--undervalued-threshold", type=float, default=env_float(env, "TW_STOCK_UNDERVALUED_THRESHOLD"))
+    parser.add_argument("--overvalued-threshold", type=float, default=env_float(env, "TW_STOCK_OVERVALUED_THRESHOLD"))
+    parser.add_argument("--stale-days", type=int, default=env_int(env, "TW_STOCK_STALE_DAYS"))
+    parser.add_argument("--min-estimates", type=int, default=env_int(env, "TW_STOCK_MIN_ESTIMATES"))
+    parser.add_argument("--excel-output", choices=["full", "lite", "both"], default=env_value(env, "TW_STOCK_EXCEL_OUTPUT"))
     parser.add_argument("--skip-cnyes", action="store_true")
-    parser.add_argument("--cnyes-delay", type=float, default=0.5)
-    parser.add_argument("--cnyes-retries", type=int, default=2)
-    parser.add_argument("--cnyes-backoff", type=float, default=2.0)
-    parser.add_argument("--cnyes-progress-every", type=int, default=50)
-    parser.add_argument("--cnyes-limit", type=int, default=0)
-    parser.add_argument("--cnyes-error-stop-after", type=int, default=30)
-    parser.add_argument("--cnyes-error-stop-rate", type=float, default=0.5)
+    parser.add_argument("--cnyes-delay", type=float, default=env_float(env, "TW_STOCK_CNYES_DELAY"))
+    parser.add_argument("--cnyes-retries", type=int, default=env_int(env, "TW_STOCK_CNYES_RETRIES"))
+    parser.add_argument("--cnyes-backoff", type=float, default=env_float(env, "TW_STOCK_CNYES_BACKOFF"))
+    parser.add_argument("--cnyes-progress-every", type=int, default=env_int(env, "TW_STOCK_CNYES_PROGRESS_EVERY"))
+    parser.add_argument("--cnyes-limit", type=int, default=env_int(env, "TW_STOCK_CNYES_LIMIT"))
+    parser.add_argument("--cnyes-error-stop-after", type=int, default=env_int(env, "TW_STOCK_CNYES_ERROR_STOP_AFTER"))
+    parser.add_argument("--cnyes-error-stop-rate", type=float, default=env_float(env, "TW_STOCK_CNYES_ERROR_STOP_RATE"))
     parser.add_argument("--timeout", type=int, default=30)
     return parser.parse_args(argv)
 
@@ -1442,16 +1572,16 @@ def main(argv: list[str]) -> int:
         suffix += "_no_cnyes"
     if args.cnyes_limit > 0 and not args.skip_cnyes:
         suffix += f"_cnyes_limit{args.cnyes_limit}"
-    output_path = Path(args.output_dir) / f"tw_valuation_gap_{date_part}{suffix}.xlsx"
-    sheets = build_workbook_rows(rows, statuses, args)
-    try:
-        write_xlsx(output_path, sheets)
-    except PermissionError:
-        timestamp = datetime.now().strftime("%H%M%S")
-        output_path = output_path.with_name(f"{output_path.stem}_{timestamp}{output_path.suffix}")
-        write_xlsx(output_path, sheets)
+    output_base = Path(args.output_dir) / f"tw_valuation_gap_{date_part}{suffix}.xlsx"
+    written_paths: list[Path] = []
+    if args.excel_output in {"full", "both"}:
+        written_paths.append(write_xlsx_with_fallback(output_base, build_workbook_rows(rows, statuses, args)))
+    if args.excel_output in {"lite", "both"}:
+        lite_path = output_base.with_name(f"{output_base.stem}_lite{output_base.suffix}")
+        written_paths.append(write_xlsx_with_fallback(lite_path, build_lite_workbook_rows(rows, statuses, args)))
 
-    print(f"Wrote {output_path}")
+    for output_path in written_paths:
+        print(f"Wrote {output_path}")
     print(f"Rows: {len(rows)}")
     print(f"Undervalued: {sum(1 for row in rows if row.get('valuation_signal') == 'undervalued')}")
     print(f"Overvalued: {sum(1 for row in rows if row.get('valuation_signal') == 'overvalued')}")
