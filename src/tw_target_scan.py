@@ -17,7 +17,7 @@ import sys
 import time
 import zipfile
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
 from urllib.request import Request, urlopen
@@ -1064,11 +1064,14 @@ def display_cell_value(column: str, value: Any) -> Any:
     return value
 
 
-def collect_shared_strings(sheets: list[tuple[str, list[dict[str, Any]], list[str]]]) -> dict[str, int]:
+def collect_shared_strings(sheets: list[tuple[str, list[dict[str, Any]], list[str]]]) -> tuple[dict[str, int], int]:
     strings: dict[str, int] = {}
+    total_count = 0
 
     def add(value: Any) -> None:
+        nonlocal total_count
         text = str(value)
+        total_count += 1
         if text not in strings:
             strings[text] = len(strings)
 
@@ -1080,17 +1083,17 @@ def collect_shared_strings(sheets: list[tuple[str, list[dict[str, Any]], list[st
                 value = display_cell_value(column, row.get(column, ""))
                 if value is not None and value != "" and not isinstance(value, (int, float)):
                     add(value)
-    return strings
+    return strings, total_count
 
 
-def shared_strings_xml(shared_strings: dict[str, int]) -> str:
+def shared_strings_xml(shared_strings: dict[str, int], total_count: int) -> str:
     items = [""] * len(shared_strings)
     for text, idx in shared_strings.items():
         items[idx] = f"<si><t>{xml_text(text)}</t></si>"
     return (
         '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
         '<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"'
-        f' count="{len(shared_strings)}" uniqueCount="{len(shared_strings)}">'
+        f' count="{total_count}" uniqueCount="{len(shared_strings)}">'
         + "".join(items)
         + "</sst>"
     )
@@ -1222,6 +1225,8 @@ def workbook_rels_xml(sheet_count: int, has_shared_strings: bool = False) -> str
 
 def content_types_xml(sheet_count: int, has_shared_strings: bool = False) -> str:
     overrides = [
+        '<Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/>',
+        '<Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
         '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>',
         '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>',
     ]
@@ -1248,7 +1253,7 @@ def styles_xml() -> str:
 <styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
 <numFmts count="3"><numFmt numFmtId="164" formatCode="#,##0.00"/><numFmt numFmtId="165" formatCode="0.00%"/><numFmt numFmtId="166" formatCode="#,##0"/></numFmts>
 <fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts>
-<fills count="1"><fill><patternFill patternType="none"/></fill></fills>
+<fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills>
 <borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>
 <cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
 <cellXfs count="5"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf><xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/><xf numFmtId="165" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/><xf numFmtId="166" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/></cellXfs>
@@ -1256,26 +1261,71 @@ def styles_xml() -> str:
 </styleSheet>"""
 
 
+def core_properties_xml() -> str:
+    timestamp = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    return (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties"'
+        ' xmlns:dc="http://purl.org/dc/elements/1.1/"'
+        ' xmlns:dcterms="http://purl.org/dc/terms/"'
+        ' xmlns:dcmitype="http://purl.org/dc/dcmitype/"'
+        ' xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">'
+        "<dc:creator>tw_target_scan</dc:creator>"
+        "<cp:lastModifiedBy>tw_target_scan</cp:lastModifiedBy>"
+        f'<dcterms:created xsi:type="dcterms:W3CDTF">{timestamp}</dcterms:created>'
+        f'<dcterms:modified xsi:type="dcterms:W3CDTF">{timestamp}</dcterms:modified>'
+        "</cp:coreProperties>"
+    )
+
+
+def app_properties_xml(sheet_names: list[str]) -> str:
+    titles = "".join(f"<vt:lpstr>{xml_text(name)}</vt:lpstr>" for name in sheet_names)
+    return (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties"'
+        ' xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes">'
+        "<Application>Microsoft Excel</Application>"
+        "<DocSecurity>0</DocSecurity>"
+        "<ScaleCrop>false</ScaleCrop>"
+        "<HeadingPairs><vt:vector size=\"2\" baseType=\"variant\">"
+        "<vt:variant><vt:lpstr>Worksheets</vt:lpstr></vt:variant>"
+        f"<vt:variant><vt:i4>{len(sheet_names)}</vt:i4></vt:variant>"
+        "</vt:vector></HeadingPairs>"
+        f"<TitlesOfParts><vt:vector size=\"{len(sheet_names)}\" baseType=\"lpstr\">{titles}</vt:vector></TitlesOfParts>"
+        "<Company></Company>"
+        "<LinksUpToDate>false</LinksUpToDate>"
+        "<SharedDoc>false</SharedDoc>"
+        "<HyperlinksChanged>false</HyperlinksChanged>"
+        "<AppVersion>16.0300</AppVersion>"
+        "</Properties>"
+    )
+
+
 def package_rels_xml() -> str:
     return (
         '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
         '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
         '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>'
+        '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/>'
+        '<Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties" Target="docProps/app.xml"/>'
         "</Relationships>"
     )
 
 
 def write_xlsx(path: Path, sheets: list[tuple[str, list[dict[str, Any]], list[str]]], active_sheet_index: int = 2) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    shared_strings = collect_shared_strings(sheets)
+    shared_strings, shared_string_count = collect_shared_strings(sheets)
+    sheet_names = [name for name, _, _ in sheets]
     with zipfile.ZipFile(path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
         zf.writestr("[Content_Types].xml", content_types_xml(len(sheets), has_shared_strings=bool(shared_strings)))
         zf.writestr("_rels/.rels", package_rels_xml())
-        zf.writestr("xl/workbook.xml", workbook_xml([name for name, _, _ in sheets], active_tab=max(0, active_sheet_index - 1)))
+        zf.writestr("docProps/core.xml", core_properties_xml())
+        zf.writestr("docProps/app.xml", app_properties_xml(sheet_names))
+        zf.writestr("xl/workbook.xml", workbook_xml(sheet_names, active_tab=max(0, active_sheet_index - 1)))
         zf.writestr("xl/_rels/workbook.xml.rels", workbook_rels_xml(len(sheets), has_shared_strings=bool(shared_strings)))
         zf.writestr("xl/styles.xml", styles_xml())
         if shared_strings:
-            zf.writestr("xl/sharedStrings.xml", shared_strings_xml(shared_strings))
+            zf.writestr("xl/sharedStrings.xml", shared_strings_xml(shared_strings, shared_string_count))
         for idx, (name, rows, columns) in enumerate(sheets, start=1):
             zf.writestr(
                 posixpath.join("xl", "worksheets", f"sheet{idx}.xml"),
