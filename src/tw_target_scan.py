@@ -794,6 +794,66 @@ def guide_rows() -> list[dict[str, str]]:
             "description": "使用鉅亨個股頁內嵌 targetValuation 共識目標價，屬於彙總共識，不是券商逐筆研究報告。",
         },
         {
+            "section": "爬取方式",
+            "item": "TWSE 上市收盤行情",
+            "description": "使用 TWSE OpenAPI JSON 端點 STOCK_DAY_ALL；一次下載上市每日收盤行情，不逐檔爬個股頁。",
+        },
+        {
+            "section": "爬取方式",
+            "item": "TWSE 上市基本資料",
+            "description": "使用 TWSE OpenAPI JSON 端點 t187ap03_L；一次下載上市公司基本資料，用來補股票名稱、公司全名、產業別與上市日期。",
+        },
+        {
+            "section": "爬取方式",
+            "item": "TPEx 上櫃收盤行情",
+            "description": "使用 TPEx OpenAPI JSON 端點 tpex_mainboard_daily_close_quotes；一次下載上櫃每日收盤行情，不逐檔爬個股頁。",
+        },
+        {
+            "section": "爬取方式",
+            "item": "TPEx 上櫃基本資料",
+            "description": "使用 TPEx OpenAPI JSON 端點 mopsfin_t187ap03_O；一次下載上櫃公司基本資料，用來補股票名稱、公司全名、產業別與上櫃日期。",
+        },
+        {
+            "section": "爬取方式",
+            "item": "鉅亨目標價",
+            "description": "不是正式公開 API；程式用 Python urllib 加瀏覽器樣式 headers 下載 https://www.cnyes.com/twstock/{stock_id} 個股頁 HTML，再解析頁面內嵌的 targetValuation JSON。",
+        },
+        {
+            "section": "爬取方式",
+            "item": "鉅亨解析欄位",
+            "description": "從 targetValuation 取 rateDate、feMean、feMedian、feHigh、feLow、numEst、feStdDev、currency、last 等共識目標價欄位。",
+        },
+        {
+            "section": "爬取頻率",
+            "item": "TWSE/TPEx",
+            "description": "每個交易所來源各發一次 JSON 請求；若下載或解析失敗最多嘗試 3 次，重試等待約 1.5 秒、3.0 秒。",
+        },
+        {
+            "section": "爬取頻率",
+            "item": "鉅亨 CLI 預設",
+            "description": "逐檔 sequential 請求；預設每檔間隔 0.5 秒，失敗重試 2 次（最多 3 次請求），backoff 以 2 秒倍增，約等待 2 秒、4 秒。",
+        },
+        {
+            "section": "爬取頻率",
+            "item": "run_full_scan.bat",
+            "description": "完整全市場 bat 使用較保守設定：每檔間隔 1.0 秒、重試 2 次、backoff 2.0 秒、每 25 檔輸出進度。",
+        },
+        {
+            "section": "保護機制",
+            "item": "鉅亨錯誤停止",
+            "description": "處理至少 30 檔後，若 HTTP error 比率 >= 50%，停止後續鉅亨請求，尚未抓取的股票標示 skipped_error_threshold，避免持續產生大量錯誤。",
+        },
+        {
+            "section": "保護機制",
+            "item": "測試限制",
+            "description": "--cnyes-limit 可限制鉅亨抓取檔數，未抓的股票標示 skipped_limit；--skip-cnyes 則只產交易所資料並保留股票列。",
+        },
+        {
+            "section": "Join 邏輯",
+            "item": "股票代號",
+            "description": "交易所資料以市場加股票代號建立 universe；鉅亨資料以股票代號 join 到同一列，缺鉅亨資料不刪股票列，只在狀態欄標示原因。",
+        },
+        {
             "section": "公式",
             "item": "平均目標價潛在漲跌幅 (upside_to_mean_pct)",
             "description": "鉅亨 targetValuation 平均目標價 target_mean / TWSE或TPEx 收盤價 close - 1；Excel 以百分比顯示，是主要低估/高估判斷欄位。",

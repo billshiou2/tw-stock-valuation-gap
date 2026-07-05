@@ -2,6 +2,7 @@
 
 ## 2026-07-04
 
+- Added detailed crawl-method notes to the Excel `使用說明` sheet: TWSE/TPEx are OpenAPI JSON downloads, Cnyes is HTML page fetching with embedded `targetValuation` JSON parsing via Python `urllib`, and the guide now documents request pacing, retries/backoff, `run_full_scan.bat` conservative settings, `--cnyes-limit`, `--skip-cnyes`, and `skipped_error_threshold`. Refreshed artifact: `output/tw_valuation_gap_20260703_readable_crawlinfo.xlsx`.
 - Clarified exchange trading units in Excel output: `成交股數(股)`, `成交金額(元)`, and `成交筆數(筆)`. The guide and data dictionary now state that TWSE `TradeVolume` and TPEx `TradingShares` are shares, not lots, and that TWSE `TradeValue` / TPEx `TransactionAmount` are NTD. Refreshed artifact: `output/tw_valuation_gap_20260703_readable_units.xlsx`.
 - Renamed the Excel display header for `close_date` from `收盤日期` to `最新收盤日期`, and updated guide/dictionary wording to match. Refreshed artifact: `output/tw_valuation_gap_20260703_readable_latestclose.xlsx`, verified no `autoFilter`, 1980 all-stock rows, 78 undervalued rows, and 35 overvalued rows.
 - Changed Excel display for the `市場` column from internal codes (`tse`/`otc`) to user-facing values (`上市`/`上櫃`) while keeping internal code handling for joins. Refreshed artifact: `output/tw_valuation_gap_20260703_readable.xlsx`, verified no `autoFilter`, 1980 all-stock rows, 78 undervalued rows, and 35 overvalued rows.
