@@ -37,7 +37,7 @@ run_full_scan.bat --no-pause
 output/tw_valuation_gap_20260703.xlsx
 ```
 
-Excel 內的正式資料表會使用中文表頭；程式內部仍保留英文欄位 key 以維持計算與排序穩定。股價、目標價、成交量、成交金額、筆數、家數等數字欄位會套用千分位格式。
+Excel 內的正式資料表會使用中文表頭；程式內部仍保留英文欄位 key 以維持計算與排序穩定。股價、目標價、成交股數(股)、成交金額(元)、成交筆數(筆)、家數等數字欄位會套用千分位格式。
 
 若使用 `--universe watchlist` 或 `--skip-cnyes`，檔名會加上 `_watchlist` 或 `_no_cnyes`，避免測試檔覆蓋完整報表。
 
