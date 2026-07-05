@@ -2,6 +2,7 @@
 
 ## 2026-07-04
 
+- Restored exchange trading columns in the readable artifact by merging close/trade fields back from the no-Cnyes exchange-only workbook; `交易所資料來源` and `交易所資料說明` are also auto-filled when missing before workbook output. Refreshed artifact: `output/tw_valuation_gap_20260703_readable_complete.xlsx`; only 3 stocks remain blank for close/trade fields because the source close data has no row/value for them: 1591, 4804, 1589.
 - Suppressed Excel `numberStoredAsText` warnings for `股票代號` and `產業別` columns while keeping them stored as text to preserve stock-code and industry-code semantics. Refreshed artifact: `output/tw_valuation_gap_20260703_readable_no_warnings.xlsx`.
 - Removed the extra Excel `交易所資料` and `產業別說明` worksheets from generated workbooks after user feedback. Added `industry_name` / `產業名稱` immediately next to `industry` / `產業別` in the main lists, with code-to-name mapping applied in-row. Refreshed artifact: `output/tw_valuation_gap_20260703_readable_industryname.xlsx` with 1980 rows, 78 undervalued, 35 overvalued, active tab on `低估清單`.
 - Added an Excel `產業別說明` sheet with TWSE/TPEx industry-code explanations, updated the guide/dictionary wording for `產業別`, fixed the latest readable workbook by restoring `最新收盤日期` from source status dates, and slimmed `過舊低信心` to 15 key columns to reduce workbook load. Refreshed artifact: `output/tw_valuation_gap_20260703_readable_fixed.xlsx` with 1980 rows, 78 undervalued, 35 overvalued.

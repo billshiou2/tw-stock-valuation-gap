@@ -1239,6 +1239,11 @@ def build_workbook_rows(rows: list[dict[str, Any]], statuses: list[SourceStatus]
     for row in rows:
         if not row.get("industry_name"):
             row["industry_name"] = industry_name_for(row.get("industry"))
+        market = str(row.get("market") or "")
+        if not row.get("exchange_source"):
+            row["exchange_source"] = exchange_source(market)
+        if not row.get("exchange_note"):
+            row["exchange_note"] = exchange_note(market)
     columns = column_order()
     undervalued = sorted(
         [row for row in rows if row.get("valuation_signal") == "undervalued"],
