@@ -641,6 +641,7 @@ def column_order() -> list[str]:
         "cnyes_last",
         "cnyes_status",
         "cnyes_attempts",
+        "cnyes_url",
     ]
 
 
@@ -684,6 +685,7 @@ def stale_column_order() -> list[str]:
         "valuation_signal",
         "confidence_note",
         "cnyes_status",
+        "cnyes_url",
     ]
 
 
@@ -712,6 +714,7 @@ def lite_column_order() -> list[str]:
         "valuation_signal",
         "confidence_note",
         "cnyes_status",
+        "cnyes_url",
     ]
 
 
@@ -910,6 +913,7 @@ def dictionary_rows() -> list[dict[str, str]]:
         "valuation_signal": "估值訊號；Excel 顯示中文，例如低估、高估、中性、評價過舊、低信心、缺少目標價。程式內部仍用英文代碼。",
         "confidence_note": "可信度註記；Excel 顯示中文，例如資料新鮮，預估 33 家、評價過舊 120 天、預估家數僅 2 家、缺少鉅亨目標價。",
         "cnyes_status": "鉅亨抓取狀態；Excel 顯示中文，例如成功讀取鉅亨資料、鉅亨無目標價、抓取失敗、解析失敗、錯誤率過高已停止。",
+        "cnyes_url": "鉅亨個股頁網址，格式為 https://www.cnyes.com/twstock/{股票代號}；方便人工開啟來源頁，回查該股票頁內嵌的 targetValuation 資料。",
         "cnyes_attempts": "鉅亨個股頁嘗試抓取次數。",
     }
     return [{"field": key, "description": value} for key, value in definitions.items()]
@@ -1131,6 +1135,11 @@ def guide_rows() -> list[dict[str, str]]:
             "section": "中文表頭",
             "item": "鉅亨抓取狀態 (cnyes_status)",
             "description": "Excel 顯示中文，例如成功讀取鉅亨資料、鉅亨無目標價、抓取失敗、解析失敗、錯誤率過高已停止；程式內部仍保留英文狀態碼。",
+        },
+        {
+            "section": "中文表頭",
+            "item": "鉅亨個股頁 (cnyes_url)",
+            "description": "依股票代號產生的鉅亨個股頁網址，例如 https://www.cnyes.com/twstock/2330；放在主要清單最後一欄，方便人工回查來源頁與 targetValuation。",
         },
         {
             "section": "格式",

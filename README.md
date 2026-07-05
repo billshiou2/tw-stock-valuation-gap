@@ -3,6 +3,7 @@
 - `使用說明`: explains sheet order, source attribution, and formulas in user-facing Chinese.
 - `低估清單` / `高估清單`: calculated after joining TWSE/TPEx close prices with Cnyes `targetValuation` consensus target prices.
 - `全部股票`: one row per listed/OTC stock, combining exchange fields, Cnyes fields, valuation-gap calculations, and fetch status. The lists include `產業別` plus adjacent `產業名稱` for readable industry names.
+- Main stock lists end with `鉅亨個股頁`, generated as `https://www.cnyes.com/twstock/{股票代號}` for manual source checks.
 
 # 台股估值落差 Excel 篩選器
 
