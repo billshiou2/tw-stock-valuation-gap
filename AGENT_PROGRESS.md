@@ -2,6 +2,7 @@
 
 ## 2026-07-04
 
+- Updated the Excel `使用說明` guide and `欄位說明` data dictionary to match the localized worksheet names and Chinese headers. Existing full output `output/tw_valuation_gap_20260703.xlsx` was refreshed in place without re-crawling, and the watchlist no-Cnyes smoke test was regenerated successfully.
 - Implemented the planned Taiwan valuation-gap Excel workflow in `src/tw_target_scan.py`.
 - Main source is now daily close data, not TWSE MIS intraday quotes: TWSE `STOCK_DAY_ALL` for listed stocks and TPEx `tpex_mainboard_daily_close_quotes` for OTC stocks.
 - Company universe is joined from TWSE `t187ap03_L` and TPEx `mopsfin_t187ap03_O` so `All_Stocks` is one row per listed/OTC company.
