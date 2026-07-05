@@ -2,6 +2,7 @@
 
 ## 2026-07-04
 
+- Clarified average target price source in Excel `使用說明` and README: `平均目標價` comes from Cnyes embedded `targetValuation.feMean`, not from averaging high/low targets; manual checks should use the Cnyes stock page `預估` tab, but the UI may not literally show the phrase `平均目標價`.
 - Changed generated Excel filenames to include both latest close date and run time (`tw_valuation_gap_YYYYMMDD_HHMMSS...xlsx`) so rerunning on the same trading day does not overwrite prior files. README examples were updated to show the timestamped naming.
 - Generated a small watchlist sample without full-market crawling after adding the Cnyes URL column: `output/tw_valuation_gap_20260703_watchlist.xlsx` and `output/tw_valuation_gap_20260703_watchlist_lite.xlsx`. Watchlist rows were 2330, 2317, 2454; Cnyes fetch was 3/3 ok. Verified `全部股票` ends with `鉅亨個股頁` and URLs like `https://www.cnyes.com/twstock/2330`.
 - Added `鉅亨個股頁` (`cnyes_url`) back as the last column of the generated full, lite, and stale/low-confidence stock lists. The value is generated from the stock id as `https://www.cnyes.com/twstock/{stock_id}` so users can manually open the source page and check embedded `targetValuation`; guide/dictionary/README wording was updated accordingly.

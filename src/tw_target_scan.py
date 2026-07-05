@@ -1012,6 +1012,11 @@ def guide_rows() -> list[dict[str, str]]:
             "description": "從 targetValuation 取 rateDate、feMean、feMedian、feHigh、feLow、numEst、feStdDev、currency、last 等共識目標價欄位。",
         },
         {
+            "section": "爬取方式",
+            "item": "人工回查平均目標價",
+            "description": "Excel 的「平均目標價」不是程式自行用最高/最低目標價平均，而是鉅亨個股頁內嵌 targetValuation.feMean。人工開啟鉅亨個股頁時可先切到「預估」tab；頁面 UI 不一定逐字顯示「平均目標價」，但程式抓的是同頁內嵌 JSON 的 feMean。",
+        },
+        {
             "section": "爬取頻率",
             "item": "TWSE/TPEx",
             "description": "每個交易所來源各發一次 JSON 請求；若下載或解析失敗最多嘗試 3 次，重試等待約 1.5 秒、3.0 秒。",
