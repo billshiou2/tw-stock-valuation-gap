@@ -916,7 +916,12 @@ def dictionary_rows() -> list[dict[str, str]]:
         "cnyes_url": "鉅亨個股頁網址，格式為 https://www.cnyes.com/twstock/{股票代號}；方便人工開啟來源頁，回查該股票頁內嵌的 targetValuation 資料。",
         "cnyes_attempts": "鉅亨個股頁嘗試抓取次數。",
     }
-    return [{"field": key, "description": value} for key, value in definitions.items()]
+    rows = []
+    for key, value in definitions.items():
+        label = column_label(key)
+        field = f"{label} ({key})" if label != key else key
+        rows.append({"field": field, "description": value})
+    return rows
 
 
 def guide_rows() -> list[dict[str, str]]:
@@ -1079,12 +1084,12 @@ def guide_rows() -> list[dict[str, str]]:
         {
             "section": "判斷",
             "item": "為何沒進低估/高估",
-            "description": "程式會先檢查資料品質：缺目標價、評價日期超過 stale-days、或預估家數少於 min-estimates 時，會先歸到 missing_target/stale/low_confidence，不放進主要低估或高估清單。",
+            "description": "程式會先檢查資料品質：缺目標價、評價日期超過過舊天數門檻、或預估家數少於最低家數門檻時，會顯示為缺少目標價、評價過舊或低信心，不放進主要低估或高估清單。",
         },
         {
             "section": "判斷",
             "item": "判斷順序",
-            "description": "順序是：鉅亨狀態與目標價是否存在 -> 評價是否過舊 -> 預估家數是否足夠 -> 才用平均目標價潛在漲跌幅判斷 undervalued / overvalued / neutral。",
+            "description": "順序是：鉅亨狀態與目標價是否存在 -> 評價是否過舊 -> 預估家數是否足夠 -> 才用平均目標價潛在漲跌幅判斷低估、高估或中性。",
         },
         {
             "section": "設定",
@@ -1102,49 +1107,9 @@ def guide_rows() -> list[dict[str, str]]:
             "description": "Excel 顯示中文，例如資料新鮮，預估 33 家、評價過舊 120 天、預估家數僅 2 家、缺少鉅亨目標價，用來快速看資料新鮮度與預估家數。",
         },
         {
-            "section": "中文表頭",
-            "item": "市場 (market)",
-            "description": "tse=上市，otc=上櫃。",
-        },
-        {
-            "section": "中文表頭",
-            "item": "股票代號 / 股票名稱 / 公司全名",
-            "description": "股票識別與公司基本資料，來自 TWSE 或 TPEx 基本資料來源。",
-        },
-        {
-            "section": "中文表頭",
-            "item": "產業別 / 產業名稱 / 上市櫃日期",
-            "description": "產業別保留交易所原始值，可能是代碼或文字；產業名稱是程式依代碼補出的中文名稱，放在產業別旁邊方便閱讀。",
-        },
-        {
-            "section": "中文表頭",
-            "item": "最新收盤日期 / 收盤價 / 漲跌 / 開盤價 / 最高價 / 最低價",
-            "description": "交易所每日收盤行情欄位；數字欄已套用千分位或小數格式。",
-        },
-        {
-            "section": "中文表頭",
-            "item": "成交股數(股) / 成交金額(元) / 成交筆數(筆)",
-            "description": "交易所每日成交欄位；成交股數單位是股不是張，成交金額單位是新台幣元，成交筆數單位是筆；Excel 顯示千分位。",
-        },
-        {
-            "section": "中文表頭",
-            "item": "平均目標價 / 中位目標價 / 最高目標價 / 最低目標價",
-            "description": "鉅亨 targetValuation 對應欄位；若沒有鉅亨資料，欄位會留空。",
-        },
-        {
-            "section": "中文表頭",
-            "item": "預估家數 (num_est)",
-            "description": "形成共識目標價的預估家數；低於門檻會被標示為低信心。",
-        },
-        {
-            "section": "中文表頭",
-            "item": "鉅亨抓取狀態 (cnyes_status)",
-            "description": "Excel 顯示中文，例如成功讀取鉅亨資料、鉅亨無目標價、抓取失敗、解析失敗、錯誤率過高已停止；程式內部仍保留英文狀態碼。",
-        },
-        {
-            "section": "中文表頭",
-            "item": "鉅亨個股頁 (cnyes_url)",
-            "description": "依股票代號產生的鉅亨個股頁網址，例如 https://www.cnyes.com/twstock/2330；放在主要清單最後一欄，方便人工回查來源頁與 targetValuation。",
+            "section": "欄位說明",
+            "item": "逐欄查詢",
+            "description": "每個中文表頭的來源、公式、單位與內部 key 集中放在「欄位說明」分頁；「使用說明」只保留閱讀順序、資料來源、爬取方式與判斷邏輯。",
         },
         {
             "section": "格式",
