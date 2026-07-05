@@ -461,6 +461,7 @@ def build_rows(
         target_row = targets.get(stock.stock_id, {})
         cnyes_status = target_row.get("cnyes_status", "skipped" if args.skip_cnyes else "missing")
         row: dict[str, Any] = {
+            "market_name": market_name(stock.market),
             "market": stock.market,
             "stock_id": stock.stock_id,
             "name": stock.name,
@@ -476,6 +477,8 @@ def build_rows(
             "trade_volume": close_row.get("trade_volume"),
             "trade_value": close_row.get("trade_value"),
             "transactions": close_row.get("transactions"),
+            "exchange_source": exchange_source(stock.market),
+            "exchange_note": exchange_note(stock.market),
             "upside_to_mean_pct": None,
             "upside_to_median_pct": None,
             "upside_to_high_pct": None,
@@ -517,6 +520,7 @@ def build_rows(
 
 def column_order() -> list[str]:
     return [
+        "market_name",
         "market",
         "stock_id",
         "name",
@@ -532,6 +536,8 @@ def column_order() -> list[str]:
         "trade_volume",
         "trade_value",
         "transactions",
+        "exchange_source",
+        "exchange_note",
         "upside_to_mean_pct",
         "upside_to_median_pct",
         "upside_to_high_pct",
@@ -557,8 +563,68 @@ def column_order() -> list[str]:
     ]
 
 
+def exchange_column_order() -> list[str]:
+    return [
+        "market_name",
+        "market",
+        "stock_id",
+        "name",
+        "company_name",
+        "industry",
+        "listing_date",
+        "close_date",
+        "close",
+        "change",
+        "open",
+        "high",
+        "low",
+        "trade_volume",
+        "trade_value",
+        "transactions",
+        "exchange_source",
+        "exchange_note",
+    ]
+
+
+def market_name(market: str) -> str:
+    if market == "tse":
+        return "上市"
+    if market == "otc":
+        return "上櫃"
+    return market
+
+
+def exchange_source(market: str) -> str:
+    if market == "tse":
+        return "TWSE: STOCK_DAY_ALL + t187ap03_L"
+    if market == "otc":
+        return "TPEx: tpex_mainboard_daily_close_quotes + mopsfin_t187ap03_O"
+    return ""
+
+
+def exchange_note(market: str) -> str:
+    if market == "tse":
+        return "上市股票；收盤行情來自 TWSE STOCK_DAY_ALL，基本資料來自 TWSE t187ap03_L。"
+    if market == "otc":
+        return "上櫃股票；收盤行情來自 TPEx tpex_mainboard_daily_close_quotes，基本資料來自 TPEx mopsfin_t187ap03_O。"
+    return ""
+
+
+def exchange_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    result = []
+    for row in rows:
+        market = str(row.get("market") or "")
+        exchange_row = {column: row.get(column, "") for column in exchange_column_order()}
+        exchange_row["market_name"] = market_name(market)
+        exchange_row["exchange_source"] = exchange_source(market)
+        exchange_row["exchange_note"] = exchange_note(market)
+        result.append(exchange_row)
+    return result
+
+
 def column_label(column: str) -> str:
     labels = {
+        "market_name": "市場名稱",
         "market": "市場",
         "stock_id": "股票代號",
         "name": "股票名稱",
@@ -574,6 +640,8 @@ def column_label(column: str) -> str:
         "trade_volume": "成交股數",
         "trade_value": "成交金額",
         "transactions": "成交筆數",
+        "exchange_source": "交易所資料來源",
+        "exchange_note": "交易所資料說明",
         "upside_to_mean_pct": "平均目標價潛在漲跌幅",
         "upside_to_median_pct": "中位目標價潛在漲跌幅",
         "upside_to_high_pct": "最高目標價潛在漲跌幅",
@@ -641,6 +709,7 @@ def status_rows(statuses: list[SourceStatus], all_rows: list[dict[str, Any]]) ->
 
 def dictionary_rows() -> list[dict[str, str]]:
     definitions = {
+        "market_name": "中文市場名稱；上市或上櫃，用來避免只看到 tse/otc 代碼。",
         "market": "市場別；tse=上市，otc=上櫃。",
         "stock_id": "股票代號。",
         "name": "股票名稱。",
@@ -652,17 +721,19 @@ def dictionary_rows() -> list[dict[str, str]]:
         "trade_volume": "成交股數，Excel 以千分位顯示。",
         "trade_value": "成交金額，Excel 以千分位顯示。",
         "transactions": "成交筆數，Excel 以千分位顯示。",
+        "exchange_source": "交易所資料來源；上市為 TWSE，上櫃為 TPEx，並列出使用的資料端點名稱。",
+        "exchange_note": "交易所資料說明；說明該列基本資料與收盤行情分別來自哪個來源。",
         "target_mean": "鉅亨 targetValuation 的平均共識目標價（feMean）。",
         "target_median": "鉅亨 targetValuation 的中位共識目標價（feMedian）。",
         "target_high": "鉅亨 targetValuation 的最高共識目標價（feHigh）。",
         "target_low": "鉅亨 targetValuation 的最低共識目標價（feLow）。",
         "target_date": "鉅亨 targetValuation 的評價日期。",
         "num_est": "鉅亨 targetValuation 的預估家數（numEst）。",
-        "upside_to_mean_pct": "平均目標價 / 收盤價 - 1；主要低估/高估判斷欄位。",
-        "upside_to_median_pct": "中位目標價 / 收盤價 - 1。",
-        "upside_to_high_pct": "最高目標價 / 收盤價 - 1。",
-        "downside_to_low_pct": "最低目標價 / 收盤價 - 1。",
-        "valuation_age_days": "收盤日期 - 鉅亨目標價日期；天數越大代表資料越舊。",
+        "upside_to_mean_pct": "鉅亨平均目標價 target_mean / TWSE或TPEx 收盤價 close - 1；主要低估/高估判斷欄位。",
+        "upside_to_median_pct": "鉅亨中位目標價 target_median / TWSE或TPEx 收盤價 close - 1。",
+        "upside_to_high_pct": "鉅亨最高目標價 target_high / TWSE或TPEx 收盤價 close - 1。",
+        "downside_to_low_pct": "鉅亨最低目標價 target_low / TWSE或TPEx 收盤價 close - 1。",
+        "valuation_age_days": "TWSE或TPEx 收盤日期 close_date - 鉅亨目標價日期 target_date；天數越大代表資料越舊。",
         "valuation_signal": "估值訊號：undervalued、overvalued、neutral、stale、low_confidence、missing_target。",
         "confidence_note": "信心註記，例如 fresh_33_estimates、stale_120_days、only_2_estimates、missing_cnyes_target。",
         "cnyes_status": "鉅亨抓取狀態：ok、no_target_valuation、parse_error、http_error、skipped_limit、skipped_error_threshold 等。",
@@ -680,13 +751,18 @@ def guide_rows() -> list[dict[str, str]]:
         },
         {
             "section": "分頁",
+            "item": "交易所資料",
+            "description": "只放 TWSE/TPEx 來源欄位，包含市場名稱、基本資料、每日收盤行情與資料來源說明；不包含鉅亨目標價與估值計算。",
+        },
+        {
+            "section": "分頁",
             "item": "低估清單",
-            "description": "平均目標價潛在漲跌幅達低估門檻、且未被判定過舊或低信心的股票；依潛在空間由高到低排序。",
+            "description": "用鉅亨平均共識目標價 join TWSE/TPEx 收盤價後計算；平均目標價潛在漲跌幅達低估門檻、且未被判定過舊或低信心。",
         },
         {
             "section": "分頁",
             "item": "高估清單",
-            "description": "平均目標價潛在漲跌幅低於高估門檻的股票；依高估程度排序。",
+            "description": "用鉅亨平均共識目標價 join TWSE/TPEx 收盤價後計算；平均目標價潛在漲跌幅低於高估門檻，依高估程度排序。",
         },
         {
             "section": "分頁",
@@ -711,7 +787,7 @@ def guide_rows() -> list[dict[str, str]]:
         {
             "section": "閱讀順序",
             "item": "建議先看",
-            "description": "先看「低估清單」與「高估清單」，再到「全部股票」查完整欄位，最後用「過舊低信心」排除資料品質疑慮。",
+            "description": "先看「低估清單」與「高估清單」，再用「交易所資料」確認 TWSE/TPEx 原始欄位，最後到「全部股票」看 join 後完整資料。",
         },
         {
             "section": "資料來源",
@@ -726,27 +802,27 @@ def guide_rows() -> list[dict[str, str]]:
         {
             "section": "公式",
             "item": "平均目標價潛在漲跌幅 (upside_to_mean_pct)",
-            "description": "平均目標價 / 收盤價 - 1；Excel 以百分比顯示，是主要低估/高估判斷欄位。",
+            "description": "鉅亨 targetValuation 平均目標價 target_mean / TWSE或TPEx 收盤價 close - 1；Excel 以百分比顯示，是主要低估/高估判斷欄位。",
         },
         {
             "section": "公式",
             "item": "中位目標價潛在漲跌幅 (upside_to_median_pct)",
-            "description": "中位目標價 / 收盤價 - 1；可用來降低極端目標價對判讀的影響。",
+            "description": "鉅亨 targetValuation 中位目標價 target_median / TWSE或TPEx 收盤價 close - 1；可降低極端目標價對判讀的影響。",
         },
         {
             "section": "公式",
             "item": "最高目標價潛在漲跌幅 (upside_to_high_pct)",
-            "description": "最高目標價 / 收盤價 - 1；偏樂觀情境參考。",
+            "description": "鉅亨 targetValuation 最高目標價 target_high / TWSE或TPEx 收盤價 close - 1；偏樂觀情境參考。",
         },
         {
             "section": "公式",
             "item": "最低目標價潛在漲跌幅 (downside_to_low_pct)",
-            "description": "最低目標價 / 收盤價 - 1；用來看保守情境下是否仍有下修空間。",
+            "description": "鉅亨 targetValuation 最低目標價 target_low / TWSE或TPEx 收盤價 close - 1；用來看保守情境下是否仍有下修空間。",
         },
         {
             "section": "公式",
             "item": "評價距今天數 (valuation_age_days)",
-            "description": "收盤日期 - 鉅亨目標價日期；天數越大代表共識目標價越舊。",
+            "description": "TWSE或TPEx 收盤日期 close_date - 鉅亨目標價日期 target_date；天數越大代表共識目標價越舊。",
         },
         {
             "section": "判斷",
@@ -968,7 +1044,7 @@ def package_rels_xml() -> str:
     )
 
 
-def write_xlsx(path: Path, sheets: list[tuple[str, list[dict[str, Any]], list[str]]], active_sheet_index: int = 2) -> None:
+def write_xlsx(path: Path, sheets: list[tuple[str, list[dict[str, Any]], list[str]]], active_sheet_index: int = 3) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
         zf.writestr("[Content_Types].xml", content_types_xml(len(sheets)))
@@ -999,6 +1075,7 @@ def build_workbook_rows(rows: list[dict[str, Any]], statuses: list[SourceStatus]
     ]
     return [
         ("\u4f7f\u7528\u8aaa\u660e", guide_rows(), ["section", "item", "description"]),
+        ("\u4ea4\u6613\u6240\u8cc7\u6599", exchange_rows(rows), exchange_column_order()),
         ("\u4f4e\u4f30\u6e05\u55ae", undervalued, columns),
         ("\u9ad8\u4f30\u6e05\u55ae", overvalued, columns),
         ("\u5168\u90e8\u80a1\u7968", rows, columns),

@@ -2,6 +2,7 @@
 
 ## 2026-07-04
 
+- Added a new Excel worksheet `交易所資料` to separate TWSE/TPEx-only data from the joined valuation view. New generated workbooks now open on `低估清單` as sheet 3. Because the prior full workbook was locked by Excel, a refreshed full artifact was written to `output/tw_valuation_gap_20260703_sources.xlsx` with 1980 all-stock rows, 78 undervalued rows, and 35 overvalued rows.
 - Updated the Excel `使用說明` guide and `欄位說明` data dictionary to match the localized worksheet names and Chinese headers. Existing full output `output/tw_valuation_gap_20260703.xlsx` was refreshed in place without re-crawling, and the watchlist no-Cnyes smoke test was regenerated successfully.
 - Implemented the planned Taiwan valuation-gap Excel workflow in `src/tw_target_scan.py`.
 - Main source is now daily close data, not TWSE MIS intraday quotes: TWSE `STOCK_DAY_ALL` for listed stocks and TPEx `tpex_mainboard_daily_close_quotes` for OTC stocks.

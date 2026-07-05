@@ -1,3 +1,10 @@
+## Workbook layout note
+
+- `使用說明`: explains sheet order, source attribution, and formulas in user-facing Chinese.
+- `交易所資料`: TWSE/TPEx-only fields. Listed stocks use TWSE `STOCK_DAY_ALL` and `t187ap03_L`; OTC stocks use TPEx `tpex_mainboard_daily_close_quotes` and `mopsfin_t187ap03_O`.
+- `低估清單` / `高估清單`: calculated after joining TWSE/TPEx close prices with Cnyes `targetValuation` consensus target prices.
+- `全部股票`: one row per listed/OTC stock, combining exchange fields, Cnyes fields, valuation-gap calculations, and fetch status.
+
 # 台股估值落差 Excel 篩選器
 
 這個專案用上市與上櫃每日收盤行情，套疊鉅亨網 Cnyes 的共識目標價，產出 Excel 報表，幫助快速查看哪些股票相對共識目標價可能明顯低估或高估。
