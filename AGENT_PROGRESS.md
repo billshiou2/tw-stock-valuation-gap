@@ -2,6 +2,7 @@
 
 ## 2026-07-04
 
+- Changed generated Excel filenames to include both latest close date and run time (`tw_valuation_gap_YYYYMMDD_HHMMSS...xlsx`) so rerunning on the same trading day does not overwrite prior files. README examples were updated to show the timestamped naming.
 - Generated a small watchlist sample without full-market crawling after adding the Cnyes URL column: `output/tw_valuation_gap_20260703_watchlist.xlsx` and `output/tw_valuation_gap_20260703_watchlist_lite.xlsx`. Watchlist rows were 2330, 2317, 2454; Cnyes fetch was 3/3 ok. Verified `全部股票` ends with `鉅亨個股頁` and URLs like `https://www.cnyes.com/twstock/2330`.
 - Added `鉅亨個股頁` (`cnyes_url`) back as the last column of the generated full, lite, and stale/low-confidence stock lists. The value is generated from the stock id as `https://www.cnyes.com/twstock/{stock_id}` so users can manually open the source page and check embedded `targetValuation`; guide/dictionary/README wording was updated accordingly.
 - Optimized Excel open performance after workbook-lag feedback: generated workbooks now use `xl/sharedStrings.xml` instead of repeated `inlineStr` cells, and the main valuation sheets no longer output the verbose per-row `exchange_note`, `cnyes_url`, or `cnyes_error` columns. Refreshed artifact without re-crawling: `output/tw_valuation_gap_20260703_fast.xlsx`; compared with `readable_complete`, sheet XML dropped from 5,215,610 to 3,523,910 bytes, total cells dropped from 112,277 to 104,228, no `autoFilter`, active tab remains `低估清單`.

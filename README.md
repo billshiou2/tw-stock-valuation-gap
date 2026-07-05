@@ -31,11 +31,11 @@ run_full_scan.bat
 run_full_scan.bat --no-pause
 ```
 
-輸出檔會放在 `output/`，預設完整全市場檔名包含收盤日期，例如：
+輸出檔會放在 `output/`，預設完整全市場檔名包含最新收盤日期與產檔時間，避免同一天重跑時覆蓋舊檔，例如：
 
 ```text
-output/tw_valuation_gap_20260703.xlsx
-output/tw_valuation_gap_20260703_lite.xlsx
+output/tw_valuation_gap_20260703_160512.xlsx
+output/tw_valuation_gap_20260703_160512_lite.xlsx
 ```
 
 Excel 內的正式資料表會使用中文表頭；程式內部仍保留英文欄位 key 以維持計算與排序穩定。股價、目標價、成交股數(股)、成交金額(元)、成交筆數(筆)、家數等數字欄位會套用千分位格式。

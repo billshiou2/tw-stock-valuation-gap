@@ -1617,6 +1617,7 @@ def main(argv: list[str]) -> int:
     )
     rows = build_rows(stocks, closes, targets, args)
     date_part = report_date(rows).replace("-", "")
+    generated_time_part = datetime.now().strftime("%H%M%S")
     suffix = ""
     if args.universe == "watchlist":
         suffix += "_watchlist"
@@ -1624,7 +1625,7 @@ def main(argv: list[str]) -> int:
         suffix += "_no_cnyes"
     if args.cnyes_limit > 0 and not args.skip_cnyes:
         suffix += f"_cnyes_limit{args.cnyes_limit}"
-    output_base = Path(args.output_dir) / f"tw_valuation_gap_{date_part}{suffix}.xlsx"
+    output_base = Path(args.output_dir) / f"tw_valuation_gap_{date_part}_{generated_time_part}{suffix}.xlsx"
     written_paths: list[Path] = []
     if args.excel_output in {"full", "both"}:
         written_paths.append(write_xlsx_with_fallback(output_base, build_workbook_rows(rows, statuses, args)))
