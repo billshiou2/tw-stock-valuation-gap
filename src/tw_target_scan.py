@@ -575,7 +575,6 @@ def column_order() -> list[str]:
         "trade_value",
         "transactions",
         "exchange_source",
-        "exchange_note",
         "upside_to_mean_pct",
         "upside_to_median_pct",
         "upside_to_high_pct",
@@ -583,7 +582,6 @@ def column_order() -> list[str]:
         "valuation_age_days",
         "valuation_signal",
         "confidence_note",
-        "cnyes_url",
         "target_date",
         "target_high",
         "target_low",
@@ -596,7 +594,6 @@ def column_order() -> list[str]:
         "currency",
         "cnyes_last",
         "cnyes_status",
-        "cnyes_error",
         "cnyes_attempts",
     ]
 
@@ -641,7 +638,6 @@ def stale_column_order() -> list[str]:
         "valuation_signal",
         "confidence_note",
         "cnyes_status",
-        "cnyes_error",
     ]
 
 
@@ -1068,7 +1064,45 @@ def display_cell_value(column: str, value: Any) -> Any:
     return value
 
 
-def xlsx_sheet_xml(name: str, rows: list[dict[str, Any]], columns: list[str], tab_selected: bool = False) -> str:
+def collect_shared_strings(sheets: list[tuple[str, list[dict[str, Any]], list[str]]]) -> dict[str, int]:
+    strings: dict[str, int] = {}
+
+    def add(value: Any) -> None:
+        text = str(value)
+        if text not in strings:
+            strings[text] = len(strings)
+
+    for _, rows, columns in sheets:
+        for column in columns:
+            add(column_label(column))
+        for row in rows:
+            for column in columns:
+                value = display_cell_value(column, row.get(column, ""))
+                if value is not None and value != "" and not isinstance(value, (int, float)):
+                    add(value)
+    return strings
+
+
+def shared_strings_xml(shared_strings: dict[str, int]) -> str:
+    items = [""] * len(shared_strings)
+    for text, idx in shared_strings.items():
+        items[idx] = f"<si><t>{xml_text(text)}</t></si>"
+    return (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"'
+        f' count="{len(shared_strings)}" uniqueCount="{len(shared_strings)}">'
+        + "".join(items)
+        + "</sst>"
+    )
+
+
+def xlsx_sheet_xml(
+    name: str,
+    rows: list[dict[str, Any]],
+    columns: list[str],
+    shared_strings: dict[str, int],
+    tab_selected: bool = False,
+) -> str:
     table = [[column_label(column) for column in columns]] + [
         [display_cell_value(col, row.get(col, "")) for col in columns] for row in rows
     ]
@@ -1135,7 +1169,7 @@ def xlsx_sheet_xml(name: str, rows: list[dict[str, Any]], columns: list[str], ta
             elif row_idx > 1 and isinstance(value, (int, float)) and column in percent_cols.union(number_cols):
                 parts.append(f'<c r="{ref}" s="{style}"><v>{value}</v></c>')
             else:
-                parts.append(f'<c r="{ref}" s="{style}" t="inlineStr"><is><t>{xml_text(value)}</t></is></c>')
+                parts.append(f'<c r="{ref}" s="{style}" t="s"><v>{shared_strings[str(value)]}</v></c>')
         parts.append("</row>")
     parts.append("</sheetData>")
     ignored_ranges = []
@@ -1166,7 +1200,7 @@ def workbook_xml(sheet_names: list[str], active_tab: int = 0) -> str:
     )
 
 
-def workbook_rels_xml(sheet_count: int) -> str:
+def workbook_rels_xml(sheet_count: int, has_shared_strings: bool = False) -> str:
     rels = [
         '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>',
         '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">',
@@ -1178,15 +1212,23 @@ def workbook_rels_xml(sheet_count: int) -> str:
     rels.append(
         f'<Relationship Id="rId{sheet_count + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>'
     )
+    if has_shared_strings:
+        rels.append(
+            f'<Relationship Id="rId{sheet_count + 2}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings" Target="sharedStrings.xml"/>'
+        )
     rels.append("</Relationships>")
     return "".join(rels)
 
 
-def content_types_xml(sheet_count: int) -> str:
+def content_types_xml(sheet_count: int, has_shared_strings: bool = False) -> str:
     overrides = [
         '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>',
         '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>',
     ]
+    if has_shared_strings:
+        overrides.append(
+            '<Override PartName="/xl/sharedStrings.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml"/>'
+        )
     for idx in range(1, sheet_count + 1):
         overrides.append(
             f'<Override PartName="/xl/worksheets/sheet{idx}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'
@@ -1225,14 +1267,20 @@ def package_rels_xml() -> str:
 
 def write_xlsx(path: Path, sheets: list[tuple[str, list[dict[str, Any]], list[str]]], active_sheet_index: int = 2) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
+    shared_strings = collect_shared_strings(sheets)
     with zipfile.ZipFile(path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
-        zf.writestr("[Content_Types].xml", content_types_xml(len(sheets)))
+        zf.writestr("[Content_Types].xml", content_types_xml(len(sheets), has_shared_strings=bool(shared_strings)))
         zf.writestr("_rels/.rels", package_rels_xml())
         zf.writestr("xl/workbook.xml", workbook_xml([name for name, _, _ in sheets], active_tab=max(0, active_sheet_index - 1)))
-        zf.writestr("xl/_rels/workbook.xml.rels", workbook_rels_xml(len(sheets)))
+        zf.writestr("xl/_rels/workbook.xml.rels", workbook_rels_xml(len(sheets), has_shared_strings=bool(shared_strings)))
         zf.writestr("xl/styles.xml", styles_xml())
+        if shared_strings:
+            zf.writestr("xl/sharedStrings.xml", shared_strings_xml(shared_strings))
         for idx, (name, rows, columns) in enumerate(sheets, start=1):
-            zf.writestr(posixpath.join("xl", "worksheets", f"sheet{idx}.xml"), xlsx_sheet_xml(name, rows, columns, tab_selected=idx == active_sheet_index))
+            zf.writestr(
+                posixpath.join("xl", "worksheets", f"sheet{idx}.xml"),
+                xlsx_sheet_xml(name, rows, columns, shared_strings, tab_selected=idx == active_sheet_index),
+            )
 
 
 def build_workbook_rows(rows: list[dict[str, Any]], statuses: list[SourceStatus], args: argparse.Namespace) -> list[tuple[str, list[dict[str, Any]], list[str]]]:
