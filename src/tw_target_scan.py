@@ -907,9 +907,9 @@ def dictionary_rows() -> list[dict[str, str]]:
         "upside_to_high_pct": "鉅亨最高目標價 target_high / TWSE或TPEx 收盤價 close - 1。",
         "downside_to_low_pct": "鉅亨最低目標價 target_low / TWSE或TPEx 收盤價 close - 1。",
         "valuation_age_days": "TWSE或TPEx 最新收盤日期 close_date - 鉅亨目標價日期 target_date；天數越大代表資料越舊。",
-        "valuation_signal": "估值訊號：undervalued、overvalued、neutral、stale、low_confidence、missing_target。",
-        "confidence_note": "信心註記，例如 fresh_33_estimates、stale_120_days、only_2_estimates、missing_cnyes_target。",
-        "cnyes_status": "鉅亨抓取狀態：ok、no_target_valuation、parse_error、http_error、skipped_limit、skipped_error_threshold 等。",
+        "valuation_signal": "估值訊號；Excel 顯示中文，例如低估、高估、中性、評價過舊、低信心、缺少目標價。程式內部仍用英文代碼。",
+        "confidence_note": "可信度註記；Excel 顯示中文，例如資料新鮮，預估 33 家、評價過舊 120 天、預估家數僅 2 家、缺少鉅亨目標價。",
+        "cnyes_status": "鉅亨抓取狀態；Excel 顯示中文，例如成功讀取鉅亨資料、鉅亨無目標價、抓取失敗、解析失敗、錯誤率過高已停止。",
         "cnyes_attempts": "鉅亨個股頁嘗試抓取次數。",
     }
     return [{"field": key, "description": value} for key, value in definitions.items()]
@@ -1065,7 +1065,7 @@ def guide_rows() -> list[dict[str, str]]:
         {
             "section": "判斷",
             "item": "估值訊號 (valuation_signal)",
-            "description": "undervalued=低估、overvalued=高估、neutral=中性、stale=過舊、low_confidence=低信心、missing_target=缺目標價。",
+            "description": "Excel 顯示中文：低估、高估、中性、評價過舊、低信心、缺少目標價；程式內部仍保留英文代碼以維持排序與設定穩定。",
         },
         {
             "section": "判斷",
@@ -1090,7 +1090,7 @@ def guide_rows() -> list[dict[str, str]]:
         {
             "section": "判斷",
             "item": "信心註記 (confidence_note)",
-            "description": "例如 fresh_33_estimates、stale_120_days、only_2_estimates、missing_cnyes_target，用來快速看資料新鮮度與預估家數。",
+            "description": "Excel 顯示中文，例如資料新鮮，預估 33 家、評價過舊 120 天、預估家數僅 2 家、缺少鉅亨目標價，用來快速看資料新鮮度與預估家數。",
         },
         {
             "section": "中文表頭",
@@ -1130,7 +1130,7 @@ def guide_rows() -> list[dict[str, str]]:
         {
             "section": "中文表頭",
             "item": "鉅亨抓取狀態 (cnyes_status)",
-            "description": "ok=成功取得目標價；no_target_valuation=頁面沒有目標價；skipped_limit=測試限制未抓；http_error/parse_error=抓取或解析異常。",
+            "description": "Excel 顯示中文，例如成功讀取鉅亨資料、鉅亨無目標價、抓取失敗、解析失敗、錯誤率過高已停止；程式內部仍保留英文狀態碼。",
         },
         {
             "section": "格式",
@@ -1162,9 +1162,52 @@ def xml_text(value: Any) -> str:
     return escape(str(value), {'"': "&quot;"})
 
 
+VALUATION_SIGNAL_LABELS = {
+    "undervalued": "低估",
+    "overvalued": "高估",
+    "neutral": "中性",
+    "stale": "評價過舊",
+    "low_confidence": "低信心",
+    "missing_target": "缺少目標價",
+}
+
+CNYES_STATUS_LABELS = {
+    "ok": "成功讀取鉅亨資料",
+    "no_target_valuation": "鉅亨無目標價",
+    "parse_error": "解析失敗",
+    "http_error": "抓取失敗",
+    "skipped_limit": "測試限制未抓",
+    "skipped_error_threshold": "錯誤率過高已停止",
+    "skipped": "略過鉅亨",
+    "missing": "缺少鉅亨資料",
+}
+
+
+def confidence_note_label(value: Any) -> str:
+    text = str(value or "")
+    if text == "missing_cnyes_target":
+        return "缺少鉅亨目標價"
+    match = re.fullmatch(r"stale_(\d+)_days", text)
+    if match:
+        return f"評價過舊 {match.group(1)} 天"
+    match = re.fullmatch(r"only_(\d+)_estimates", text)
+    if match:
+        return f"預估家數僅 {match.group(1)} 家"
+    match = re.fullmatch(r"fresh_(\d+)_estimates", text)
+    if match:
+        return f"資料新鮮，預估 {match.group(1)} 家"
+    return text
+
+
 def display_cell_value(column: str, value: Any) -> Any:
     if column == "market":
         return market_name(str(value or ""))
+    if column == "valuation_signal":
+        return VALUATION_SIGNAL_LABELS.get(str(value or ""), value)
+    if column == "confidence_note":
+        return confidence_note_label(value)
+    if column == "cnyes_status":
+        return CNYES_STATUS_LABELS.get(str(value or ""), value)
     return value
 
 
