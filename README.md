@@ -4,6 +4,7 @@
 - `交易所資料`: TWSE/TPEx-only fields. Listed stocks use TWSE `STOCK_DAY_ALL` and `t187ap03_L`; OTC stocks use TPEx `tpex_mainboard_daily_close_quotes` and `mopsfin_t187ap03_O`.
 - `低估清單` / `高估清單`: calculated after joining TWSE/TPEx close prices with Cnyes `targetValuation` consensus target prices.
 - `全部股票`: one row per listed/OTC stock, combining exchange fields, Cnyes fields, valuation-gap calculations, and fetch status.
+- `產業別說明`: explains the industry codes used in the `產業別` column, especially OTC rows that use numeric industry codes.
 
 # 台股估值落差 Excel 篩選器
 

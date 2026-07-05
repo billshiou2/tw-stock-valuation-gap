@@ -2,6 +2,7 @@
 
 ## 2026-07-04
 
+- Added an Excel `產業別說明` sheet with TWSE/TPEx industry-code explanations, updated the guide/dictionary wording for `產業別`, fixed the latest readable workbook by restoring `最新收盤日期` from source status dates, and slimmed `過舊低信心` to 15 key columns to reduce workbook load. Refreshed artifact: `output/tw_valuation_gap_20260703_readable_fixed.xlsx` with 1980 rows, 78 undervalued, 35 overvalued.
 - Added detailed crawl-method notes to the Excel `使用說明` sheet: TWSE/TPEx are OpenAPI JSON downloads, Cnyes is HTML page fetching with embedded `targetValuation` JSON parsing via Python `urllib`, and the guide now documents request pacing, retries/backoff, `run_full_scan.bat` conservative settings, `--cnyes-limit`, `--skip-cnyes`, and `skipped_error_threshold`. Refreshed artifact: `output/tw_valuation_gap_20260703_readable_crawlinfo.xlsx`.
 - Clarified exchange trading units in Excel output: `成交股數(股)`, `成交金額(元)`, and `成交筆數(筆)`. The guide and data dictionary now state that TWSE `TradeVolume` and TPEx `TradingShares` are shares, not lots, and that TWSE `TradeValue` / TPEx `TransactionAmount` are NTD. Refreshed artifact: `output/tw_valuation_gap_20260703_readable_units.xlsx`.
 - Renamed the Excel display header for `close_date` from `收盤日期` to `最新收盤日期`, and updated guide/dictionary wording to match. Refreshed artifact: `output/tw_valuation_gap_20260703_readable_latestclose.xlsx`, verified no `autoFilter`, 1980 all-stock rows, 78 undervalued rows, and 35 overvalued rows.

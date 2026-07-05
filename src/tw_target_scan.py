@@ -35,6 +35,44 @@ CNYES_USER_AGENT = (
 )
 MARKETS = ("tse", "otc")
 
+INDUSTRY_CODES = {
+    "01": "水泥工業",
+    "02": "食品工業",
+    "03": "塑膠工業",
+    "04": "紡織纖維",
+    "05": "電機機械",
+    "06": "電器電纜",
+    "08": "玻璃陶瓷",
+    "09": "造紙工業",
+    "10": "鋼鐵工業",
+    "11": "橡膠工業",
+    "12": "汽車工業",
+    "14": "建材營造",
+    "15": "航運業",
+    "16": "觀光餐旅",
+    "17": "金融保險",
+    "18": "貿易百貨",
+    "20": "其他",
+    "21": "化學工業",
+    "22": "生技醫療業",
+    "23": "油電燃氣業",
+    "24": "半導體業",
+    "25": "電腦及週邊設備業",
+    "26": "光電業",
+    "27": "通信網路業",
+    "28": "電子零組件業",
+    "29": "電子通路業",
+    "30": "資訊服務業",
+    "31": "其他電子業",
+    "32": "文化創意業",
+    "33": "農業科技業",
+    "34": "電子商務業",
+    "35": "綠能環保",
+    "36": "數位雲端",
+    "37": "運動休閒",
+    "38": "居家生活",
+}
+
 
 @dataclass(frozen=True)
 class StockInfo:
@@ -583,6 +621,62 @@ def exchange_column_order() -> list[str]:
     ]
 
 
+def stale_column_order() -> list[str]:
+    return [
+        "market",
+        "stock_id",
+        "name",
+        "industry",
+        "close_date",
+        "close",
+        "upside_to_mean_pct",
+        "target_date",
+        "target_mean",
+        "valuation_age_days",
+        "num_est",
+        "valuation_signal",
+        "confidence_note",
+        "cnyes_status",
+        "cnyes_error",
+    ]
+
+
+def industry_rows(rows: list[dict[str, Any]]) -> list[dict[str, str]]:
+    seen_codes = sorted(
+        {
+            str(row.get("industry") or "").strip()
+            for row in rows
+            if str(row.get("industry") or "").strip().isdigit()
+        }
+    )
+    result = []
+    for code in seen_codes:
+        result.append(
+            {
+                "industry_code": code,
+                "industry_name": INDUSTRY_CODES.get(code, ""),
+                "industry_note": "TWSE/TPEx 產業別代碼；空白代表目前對照表尚未列入，仍保留原始代碼。",
+            }
+        )
+    text_industries = sorted(
+        {
+            str(row.get("industry") or "").strip()
+            for row in rows
+            if str(row.get("industry") or "").strip()
+            and not str(row.get("industry") or "").strip().isdigit()
+        }
+    )
+    for value in text_industries:
+        result.append(
+            {
+                "industry_code": value,
+                "industry_name": value,
+                "industry_note": "TWSE 已提供文字產業別，非數字代碼。",
+            }
+        )
+    return result
+
+
 def market_name(market: str) -> str:
     if market == "tse":
         return "上市"
@@ -625,6 +719,9 @@ def column_label(column: str) -> str:
         "name": "股票名稱",
         "company_name": "公司全名",
         "industry": "產業別",
+        "industry_code": "產業別代碼",
+        "industry_name": "產業別名稱",
+        "industry_note": "產業別說明",
         "listing_date": "上市櫃日期",
         "close_date": "最新收盤日期",
         "close": "收盤價",
@@ -708,7 +805,7 @@ def dictionary_rows() -> list[dict[str, str]]:
         "stock_id": "股票代號。",
         "name": "股票名稱。",
         "company_name": "公司全名，來自 TWSE/TPEx 基本資料。",
-        "industry": "產業別，來自 TWSE/TPEx 基本資料。",
+        "industry": "產業別；可能是文字名稱，也可能是 TWSE/TPEx 產業代碼，可到「產業別說明」分頁查對照。",
         "listing_date": "上市或上櫃日期。",
         "close_date": "最新收盤行情日期，也是輸出檔名使用的主要日期。",
         "close": "TWSE 或 TPEx 每日收盤價，不是即時價。",
@@ -777,6 +874,11 @@ def guide_rows() -> list[dict[str, str]]:
             "section": "分頁",
             "item": "欄位說明",
             "description": "補充主要欄位、門檻與資料來源；若要查內部欄位名稱，可看括號內英文 key。",
+        },
+        {
+            "section": "分頁",
+            "item": "產業別說明",
+            "description": "說明「產業別」欄位中的代碼對照；例如 24=半導體業、28=電子零組件業、33=農業科技業。",
         },
         {
             "section": "閱讀順序",
@@ -901,7 +1003,7 @@ def guide_rows() -> list[dict[str, str]]:
         {
             "section": "中文表頭",
             "item": "產業別 / 上市櫃日期",
-            "description": "公司所屬產業與上市或上櫃日期。",
+            "description": "公司所屬產業與上市或上櫃日期；上市資料有時是文字，上櫃資料多為代碼，請搭配「產業別說明」分頁閱讀。",
         },
         {
             "section": "中文表頭",
@@ -1140,9 +1242,10 @@ def build_workbook_rows(rows: list[dict[str, Any]], statuses: list[SourceStatus]
         ("\u4f4e\u4f30\u6e05\u55ae", undervalued, columns),
         ("\u9ad8\u4f30\u6e05\u55ae", overvalued, columns),
         ("\u5168\u90e8\u80a1\u7968", rows, columns),
-        ("\u904e\u820a\u4f4e\u4fe1\u5fc3", stale_low, columns),
+        ("\u904e\u820a\u4f4e\u4fe1\u5fc3", stale_low, stale_column_order()),
         ("\u6293\u53d6\u72c0\u614b", status_rows(statuses, rows), ["generated_at", "source", "status", "rows", "data_date", "url", "message"]),
         ("\u6b04\u4f4d\u8aaa\u660e", dictionary_rows(), ["field", "description"]),
+        ("\u7522\u696d\u5225\u8aaa\u660e", industry_rows(rows), ["industry_code", "industry_name", "industry_note"]),
     ]
 
 
