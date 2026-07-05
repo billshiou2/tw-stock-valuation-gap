@@ -461,7 +461,6 @@ def build_rows(
         target_row = targets.get(stock.stock_id, {})
         cnyes_status = target_row.get("cnyes_status", "skipped" if args.skip_cnyes else "missing")
         row: dict[str, Any] = {
-            "market_name": market_name(stock.market),
             "market": stock.market,
             "stock_id": stock.stock_id,
             "name": stock.name,
@@ -520,7 +519,6 @@ def build_rows(
 
 def column_order() -> list[str]:
     return [
-        "market_name",
         "market",
         "stock_id",
         "name",
@@ -565,7 +563,6 @@ def column_order() -> list[str]:
 
 def exchange_column_order() -> list[str]:
     return [
-        "market_name",
         "market",
         "stock_id",
         "name",
@@ -615,7 +612,6 @@ def exchange_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     for row in rows:
         market = str(row.get("market") or "")
         exchange_row = {column: row.get(column, "") for column in exchange_column_order()}
-        exchange_row["market_name"] = market_name(market)
         exchange_row["exchange_source"] = exchange_source(market)
         exchange_row["exchange_note"] = exchange_note(market)
         result.append(exchange_row)
@@ -624,7 +620,6 @@ def exchange_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 def column_label(column: str) -> str:
     labels = {
-        "market_name": "市場名稱",
         "market": "市場",
         "stock_id": "股票代號",
         "name": "股票名稱",
@@ -709,8 +704,7 @@ def status_rows(statuses: list[SourceStatus], all_rows: list[dict[str, Any]]) ->
 
 def dictionary_rows() -> list[dict[str, str]]:
     definitions = {
-        "market_name": "中文市場名稱；上市或上櫃，用來避免只看到 tse/otc 代碼。",
-        "market": "市場別；tse=上市，otc=上櫃。",
+        "market": "市場別；Excel 直接顯示上市或上櫃，內部資料處理時 tse=上市、otc=上櫃。",
         "stock_id": "股票代號。",
         "name": "股票名稱。",
         "company_name": "公司全名，來自 TWSE/TPEx 基本資料。",
@@ -752,7 +746,7 @@ def guide_rows() -> list[dict[str, str]]:
         {
             "section": "分頁",
             "item": "交易所資料",
-            "description": "只放 TWSE/TPEx 來源欄位，包含市場名稱、基本資料、每日收盤行情與資料來源說明；不包含鉅亨目標價與估值計算。",
+            "description": "只放 TWSE/TPEx 來源欄位，市場欄直接顯示上市/上櫃，並包含基本資料、每日收盤行情與資料來源說明；不包含鉅亨目標價與估值計算。",
         },
         {
             "section": "分頁",
@@ -900,8 +894,16 @@ def xml_text(value: Any) -> str:
     return escape(str(value), {'"': "&quot;"})
 
 
+def display_cell_value(column: str, value: Any) -> Any:
+    if column == "market":
+        return market_name(str(value or ""))
+    return value
+
+
 def xlsx_sheet_xml(name: str, rows: list[dict[str, Any]], columns: list[str], tab_selected: bool = False) -> str:
-    table = [[column_label(column) for column in columns]] + [[row.get(col, "") for col in columns] for row in rows]
+    table = [[column_label(column) for column in columns]] + [
+        [display_cell_value(col, row.get(col, "")) for col in columns] for row in rows
+    ]
     max_row = max(1, len(table))
     max_col = max(1, len(columns))
     selected_attr = ' tabSelected="1"' if tab_selected else ""
