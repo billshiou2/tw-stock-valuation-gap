@@ -968,7 +968,6 @@ def xlsx_sheet_xml(name: str, rows: list[dict[str, Any]], columns: list[str], ta
                 parts.append(f'<c r="{ref}" s="{style}" t="inlineStr"><is><t>{xml_text(value)}</t></is></c>')
         parts.append("</row>")
     parts.append("</sheetData>")
-    parts.append(f'<autoFilter ref="A1:{cell_ref(max_row, max_col)}"/>')
     parts.append("</worksheet>")
     return "".join(parts)
 
