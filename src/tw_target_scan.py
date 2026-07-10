@@ -29,6 +29,13 @@ TWSE_CLOSE_URL = "https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL"
 TWSE_PROFILE_URL = "https://openapi.twse.com.tw/v1/opendata/t187ap03_L"
 TPEX_CLOSE_URL = "https://www.tpex.org.tw/openapi/v1/tpex_mainboard_daily_close_quotes"
 TPEX_PROFILE_URL = "https://www.tpex.org.tw/openapi/v1/mopsfin_t187ap03_O"
+TWSE_VALUATION_URL = "https://openapi.twse.com.tw/v1/exchangeReport/BWIBBU_ALL"
+TPEX_VALUATION_URL = "https://www.tpex.org.tw/openapi/v1/tpex_mainboard_peratio_analysis"
+TWSE_REVENUE_URL = "https://openapi.twse.com.tw/v1/opendata/t187ap05_L"
+TPEX_REVENUE_URL = "https://www.tpex.org.tw/openapi/v1/mopsfin_t187ap05_O"
+TWSE_EPS_URL = "https://openapi.twse.com.tw/v1/opendata/t187ap14_L"
+TPEX_EPS_URL = "https://www.tpex.org.tw/openapi/v1/mopsfin_t187ap14_O"
+TWSE_MARGIN_URL = "https://openapi.twse.com.tw/v1/opendata/t187ap17_L"
 CNYES_STOCK_URL = "https://www.cnyes.com/twstock/{stock_id}"
 CNYES_FACTSET_SOURCE = "鉅亨/FactSet共識"
 CNYES_UNSPECIFIED_SOURCE = "鉅亨共識(來源未明確標示)"
@@ -225,6 +232,43 @@ def normalize_date(raw: str) -> str:
     return raw
 
 
+def normalize_month(raw: str) -> str:
+    raw = (raw or "").strip()
+    if not raw:
+        return ""
+    if re.fullmatch(r"\d{5}", raw):
+        year = int(raw[:3]) + 1911
+        return f"{year:04d}-{raw[3:5]}"
+    if re.fullmatch(r"\d{6}", raw):
+        return f"{raw[:4]}-{raw[4:6]}"
+    return raw
+
+
+def normalize_year(raw: Any) -> str:
+    text = str(raw or "").strip()
+    if not text:
+        return ""
+    if re.fullmatch(r"\d{3}", text):
+        return str(int(text) + 1911)
+    return text
+
+
+def normalize_period(year: Any, quarter: Any) -> str:
+    normalized_year = normalize_year(year)
+    quarter_text = str(quarter or "").strip()
+    match = re.search(r"(\d+)", quarter_text)
+    if not normalized_year or not match:
+        return ""
+    return f"{normalized_year}Q{match.group(1)}"
+
+
+def percent_value(value: Any) -> float | None:
+    number = to_float(value)
+    if number is None:
+        return None
+    return number / 100.0
+
+
 def parse_date(value: str) -> date | None:
     if not value:
         return None
@@ -339,6 +383,155 @@ def fetch_tpex_closes(statuses: list[SourceStatus]) -> dict[tuple[str, str], dic
             "transactions": to_float(row.get("TransactionNumber")),
         }
     return closes
+
+
+def latest_by_code(rows: Iterable[dict[str, Any]], code_keys: tuple[str, ...], period_keys: tuple[str, ...]) -> dict[str, dict[str, Any]]:
+    indexed: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        code = ""
+        for key in code_keys:
+            code = clean_code(row.get(key))
+            if code:
+                break
+        if not code:
+            continue
+        current = indexed.get(code)
+        if current is None:
+            indexed[code] = row
+            continue
+        row_period = "".join(clean_code(row.get(key)) for key in period_keys)
+        current_period = "".join(clean_code(current.get(key)) for key in period_keys)
+        if row_period >= current_period:
+            indexed[code] = row
+    return indexed
+
+
+def fundamentals_source(market: str) -> str:
+    if market == "tse":
+        return "TWSE: BWIBBU_ALL + t187ap05_L + t187ap14_L + t187ap17_L"
+    if market == "otc":
+        return "TPEx: tpex_mainboard_peratio_analysis + mopsfin_t187ap05_O + mopsfin_t187ap14_O"
+    return ""
+
+
+def fetch_fundamentals(
+    stocks: list[StockInfo],
+    skip: bool,
+    statuses: list[SourceStatus],
+) -> dict[tuple[str, str], dict[str, Any]]:
+    if skip:
+        statuses.append(SourceStatus(source="fundamentals", url="", status="skipped"))
+        return {}
+
+    markets = {stock.market for stock in stocks}
+    result: dict[tuple[str, str], dict[str, Any]] = {}
+    twse_valuation: dict[str, dict[str, Any]] = {}
+    tpex_valuation: dict[str, dict[str, Any]] = {}
+    twse_revenue: dict[str, dict[str, Any]] = {}
+    tpex_revenue: dict[str, dict[str, Any]] = {}
+    twse_eps: dict[str, dict[str, Any]] = {}
+    tpex_eps: dict[str, dict[str, Any]] = {}
+    twse_margin: dict[str, dict[str, Any]] = {}
+
+    if "tse" in markets:
+        twse_valuation = latest_by_code(fetch_json(TWSE_VALUATION_URL, "twse_valuation_metrics", statuses), ("Code",), ("Date",))
+        twse_revenue = latest_by_code(fetch_json(TWSE_REVENUE_URL, "twse_monthly_revenue", statuses), ("公司代號",), ("資料年月", "出表日期"))
+        twse_eps = latest_by_code(fetch_json(TWSE_EPS_URL, "twse_eps_income", statuses), ("公司代號",), ("年度", "季別", "出表日期"))
+        twse_margin = latest_by_code(fetch_json(TWSE_MARGIN_URL, "twse_margin_ratios", statuses), ("公司代號",), ("年度", "季別", "出表日期"))
+    if "otc" in markets:
+        tpex_valuation = latest_by_code(
+            fetch_json(TPEX_VALUATION_URL, "tpex_valuation_metrics", statuses),
+            ("SecuritiesCompanyCode",),
+            ("Date",),
+        )
+        tpex_revenue = latest_by_code(
+            fetch_json(TPEX_REVENUE_URL, "tpex_monthly_revenue", statuses),
+            ("公司代號", "SecuritiesCompanyCode"),
+            ("資料年月", "出表日期", "Date"),
+        )
+        tpex_eps = latest_by_code(
+            fetch_json(TPEX_EPS_URL, "tpex_eps_income", statuses),
+            ("SecuritiesCompanyCode", "公司代號"),
+            ("Year", "年度", "季別", "Date", "出表日期"),
+        )
+
+    for stock in stocks:
+        if stock.market == "tse":
+            valuation_row = twse_valuation.get(stock.stock_id, {})
+            revenue_row = twse_revenue.get(stock.stock_id, {})
+            eps_row = twse_eps.get(stock.stock_id, {})
+            margin_row = twse_margin.get(stock.stock_id, {})
+            valuation_metric_date = normalize_date(clean_code(valuation_row.get("Date")))
+            per = to_float(valuation_row.get("PEratio"))
+            pbr = to_float(valuation_row.get("PBratio"))
+            dividend_yield = percent_value(valuation_row.get("DividendYield"))
+            revenue_period = normalize_month(clean_code(revenue_row.get("資料年月")))
+            financial_period = normalize_period(eps_row.get("年度"), eps_row.get("季別"))
+            financial_revenue = to_float(eps_row.get("營業收入"))
+            operating_income = to_float(eps_row.get("營業利益"))
+            net_income = to_float(eps_row.get("稅後淨利"))
+            gross_margin = percent_value(margin_row.get("毛利率(%)(營業毛利)/(營業收入)"))
+            operating_margin = percent_value(margin_row.get("營業利益率(%)(營業利益)/(營業收入)"))
+            net_margin = percent_value(margin_row.get("稅後純益率(%)(稅後純益)/(營業收入)"))
+        else:
+            valuation_row = tpex_valuation.get(stock.stock_id, {})
+            revenue_row = tpex_revenue.get(stock.stock_id, {})
+            eps_row = tpex_eps.get(stock.stock_id, {})
+            valuation_metric_date = normalize_date(clean_code(valuation_row.get("Date")))
+            per = to_float(valuation_row.get("PriceEarningRatio"))
+            pbr = to_float(valuation_row.get("PriceBookRatio"))
+            dividend_yield = percent_value(valuation_row.get("YieldRatio"))
+            revenue_period = normalize_month(clean_code(revenue_row.get("資料年月")))
+            financial_period = normalize_period(eps_row.get("Year") or eps_row.get("年度"), eps_row.get("季別"))
+            financial_revenue = to_float(eps_row.get("營業收入"))
+            operating_income = to_float(eps_row.get("營業利益"))
+            net_income = to_float(eps_row.get("稅後淨利"))
+            gross_margin = None
+            operating_margin = operating_income / financial_revenue if operating_income is not None and financial_revenue not in {None, 0} else None
+            net_margin = net_income / financial_revenue if net_income is not None and financial_revenue not in {None, 0} else None
+
+        notes: list[str] = []
+        if stock.market == "tse":
+            notes.append("上市毛利率來自 TWSE t187ap17_L")
+        if stock.market == "otc":
+            notes.append("上櫃毛利率目前未找到穩定 TPEx OpenAPI 欄位，暫留空；請看營業利益率與稅後淨利率")
+        notes.append("ROE 暫未納入，因公開端點尚未確認穩定權益資料")
+        has_any = any(
+            value not in {None, ""}
+            for value in [
+                per,
+                pbr,
+                dividend_yield,
+                revenue_period,
+                financial_period,
+                financial_revenue,
+                operating_income,
+                net_income,
+            ]
+        )
+        result[(stock.market, stock.stock_id)] = {
+            "valuation_metric_date": valuation_metric_date,
+            "per": per,
+            "pbr": pbr,
+            "dividend_yield_pct": dividend_yield,
+            "revenue_period": revenue_period,
+            "monthly_revenue": to_float(revenue_row.get("營業收入-當月營收")),
+            "monthly_revenue_mom_pct": percent_value(revenue_row.get("營業收入-上月比較增減(%)")),
+            "monthly_revenue_yoy_pct": percent_value(revenue_row.get("營業收入-去年同月增減(%)")),
+            "cumulative_revenue_yoy_pct": percent_value(revenue_row.get("累計營業收入-前期比較增減(%)")),
+            "financial_period": financial_period,
+            "eps": to_float(eps_row.get("基本每股盈餘(元)") or eps_row.get("基本每股盈餘")),
+            "financial_revenue": financial_revenue,
+            "operating_income": operating_income,
+            "net_income": net_income,
+            "gross_margin_pct": gross_margin,
+            "operating_margin_pct": operating_margin,
+            "net_margin_pct": net_margin,
+            "fundamentals_source": fundamentals_source(stock.market),
+            "fundamentals_status": "ok" if has_any else "missing",
+            "fundamentals_note": "；".join(notes),
+        }
+    return result
 
 
 def select_universe(
@@ -559,12 +752,14 @@ def build_rows(
     stocks: list[StockInfo],
     closes: dict[tuple[str, str], dict[str, Any]],
     targets: dict[str, dict[str, Any]],
+    fundamentals: dict[tuple[str, str], dict[str, Any]],
     args: argparse.Namespace,
 ) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     for stock in stocks:
         close_row = closes.get((stock.market, stock.stock_id), {})
         target_row = targets.get(stock.stock_id, {})
+        fundamental_row = fundamentals.get((stock.market, stock.stock_id), {})
         cnyes_status = target_row.get("cnyes_status", "skipped" if args.skip_cnyes else "missing")
         row: dict[str, Any] = {
             "market": stock.market,
@@ -611,6 +806,26 @@ def build_rows(
                 "cnyes_source",
                 CNYES_NOT_FETCHED_SOURCE if args.skip_cnyes else CNYES_NO_TARGET_SOURCE,
             ),
+            "valuation_metric_date": fundamental_row.get("valuation_metric_date", ""),
+            "per": fundamental_row.get("per"),
+            "pbr": fundamental_row.get("pbr"),
+            "dividend_yield_pct": fundamental_row.get("dividend_yield_pct"),
+            "revenue_period": fundamental_row.get("revenue_period", ""),
+            "monthly_revenue": fundamental_row.get("monthly_revenue"),
+            "monthly_revenue_mom_pct": fundamental_row.get("monthly_revenue_mom_pct"),
+            "monthly_revenue_yoy_pct": fundamental_row.get("monthly_revenue_yoy_pct"),
+            "cumulative_revenue_yoy_pct": fundamental_row.get("cumulative_revenue_yoy_pct"),
+            "financial_period": fundamental_row.get("financial_period", ""),
+            "eps": fundamental_row.get("eps"),
+            "financial_revenue": fundamental_row.get("financial_revenue"),
+            "operating_income": fundamental_row.get("operating_income"),
+            "net_income": fundamental_row.get("net_income"),
+            "gross_margin_pct": fundamental_row.get("gross_margin_pct"),
+            "operating_margin_pct": fundamental_row.get("operating_margin_pct"),
+            "net_margin_pct": fundamental_row.get("net_margin_pct"),
+            "fundamentals_source": fundamental_row.get("fundamentals_source", ""),
+            "fundamentals_status": fundamental_row.get("fundamentals_status", "skipped" if args.skip_fundamentals else "missing"),
+            "fundamentals_note": fundamental_row.get("fundamentals_note", ""),
         }
         row["upside_to_mean_pct"] = pct(row["target_mean"], row["close"])
         row["upside_to_median_pct"] = pct(row["target_median"], row["close"])
@@ -669,6 +884,26 @@ def column_order() -> list[str]:
         "cnyes_attempts",
         "cnyes_source",
         "cnyes_url",
+        "valuation_metric_date",
+        "per",
+        "pbr",
+        "dividend_yield_pct",
+        "revenue_period",
+        "monthly_revenue",
+        "monthly_revenue_mom_pct",
+        "monthly_revenue_yoy_pct",
+        "cumulative_revenue_yoy_pct",
+        "financial_period",
+        "eps",
+        "financial_revenue",
+        "operating_income",
+        "net_income",
+        "gross_margin_pct",
+        "operating_margin_pct",
+        "net_margin_pct",
+        "fundamentals_status",
+        "fundamentals_source",
+        "fundamentals_note",
     ]
 
 
@@ -714,6 +949,18 @@ def stale_column_order() -> list[str]:
         "cnyes_status",
         "cnyes_source",
         "cnyes_url",
+        "valuation_metric_date",
+        "per",
+        "pbr",
+        "dividend_yield_pct",
+        "revenue_period",
+        "monthly_revenue_yoy_pct",
+        "cumulative_revenue_yoy_pct",
+        "financial_period",
+        "eps",
+        "operating_margin_pct",
+        "net_margin_pct",
+        "fundamentals_status",
     ]
 
 
@@ -744,6 +991,18 @@ def lite_column_order() -> list[str]:
         "cnyes_status",
         "cnyes_source",
         "cnyes_url",
+        "valuation_metric_date",
+        "per",
+        "pbr",
+        "dividend_yield_pct",
+        "revenue_period",
+        "monthly_revenue_yoy_pct",
+        "cumulative_revenue_yoy_pct",
+        "financial_period",
+        "eps",
+        "operating_margin_pct",
+        "net_margin_pct",
+        "fundamentals_status",
     ]
 
 
@@ -825,6 +1084,49 @@ def exchange_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return result
 
 
+COLUMN_LABEL_PERIODS: dict[str, str] = {}
+
+
+def most_common_value(rows: list[dict[str, Any]], column: str) -> str:
+    counts: dict[str, int] = {}
+    for row in rows:
+        value = str(row.get(column) or "").strip()
+        if value:
+            counts[value] = counts.get(value, 0) + 1
+    if not counts:
+        return ""
+    return sorted(counts.items(), key=lambda item: (-item[1], item[0]))[0][0]
+
+
+def set_column_label_periods(rows: list[dict[str, Any]]) -> None:
+    COLUMN_LABEL_PERIODS.clear()
+    valuation_date = most_common_value(rows, "valuation_metric_date")
+    revenue_period = most_common_value(rows, "revenue_period")
+    financial_period = most_common_value(rows, "financial_period")
+    for column in ("per", "pbr", "dividend_yield_pct"):
+        if valuation_date:
+            COLUMN_LABEL_PERIODS[column] = valuation_date
+    for column in (
+        "monthly_revenue",
+        "monthly_revenue_mom_pct",
+        "monthly_revenue_yoy_pct",
+        "cumulative_revenue_yoy_pct",
+    ):
+        if revenue_period:
+            COLUMN_LABEL_PERIODS[column] = revenue_period
+    for column in (
+        "eps",
+        "financial_revenue",
+        "operating_income",
+        "net_income",
+        "gross_margin_pct",
+        "operating_margin_pct",
+        "net_margin_pct",
+    ):
+        if financial_period:
+            COLUMN_LABEL_PERIODS[column] = financial_period
+
+
 def column_label(column: str) -> str:
     labels = {
         "market": "市場",
@@ -870,6 +1172,26 @@ def column_label(column: str) -> str:
         "cnyes_error": "鉅亨錯誤訊息",
         "cnyes_attempts": "鉅亨請求次數",
         "cnyes_source": "鉅亨資料來源",
+        "valuation_metric_date": "估值資料日",
+        "per": "本益比",
+        "pbr": "股價淨值比",
+        "dividend_yield_pct": "殖利率",
+        "revenue_period": "營收期別",
+        "monthly_revenue": "月營收(仟元)",
+        "monthly_revenue_mom_pct": "月營收月增率",
+        "monthly_revenue_yoy_pct": "月營收年增率",
+        "cumulative_revenue_yoy_pct": "累計營收年增率",
+        "financial_period": "財報期別",
+        "eps": "EPS",
+        "financial_revenue": "財報營業收入(仟元)",
+        "operating_income": "營業利益(仟元)",
+        "net_income": "稅後淨利(仟元)",
+        "gross_margin_pct": "毛利率",
+        "operating_margin_pct": "營業利益率",
+        "net_margin_pct": "稅後淨利率",
+        "fundamentals_status": "基本面抓取狀態",
+        "fundamentals_source": "基本面資料來源",
+        "fundamentals_note": "基本面資料備註",
         "generated_at": "產出時間",
         "source": "資料源",
         "status": "狀態",
@@ -882,7 +1204,11 @@ def column_label(column: str) -> str:
         "description": "說明",
         "field": "欄位",
     }
-    return labels.get(column, column)
+    label = labels.get(column, column)
+    period = COLUMN_LABEL_PERIODS.get(column)
+    if period:
+        return f"{label}({period})"
+    return label
 
 
 def status_rows(statuses: list[SourceStatus], all_rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -946,6 +1272,26 @@ def dictionary_rows() -> list[dict[str, str]]:
         "cnyes_source": CNYES_DATA_SOURCE_NOTE,
         "cnyes_url": "鉅亨個股頁網址，格式為 https://www.cnyes.com/twstock/{股票代號}；方便人工開啟來源頁，回查該股票頁內嵌的 targetValuation 資料。",
         "cnyes_attempts": "鉅亨個股頁嘗試抓取次數。",
+        "valuation_metric_date": "本益比、股價淨值比、殖利率使用的資料日期；上市來自 TWSE BWIBBU_ALL.Date，上櫃來自 TPEx tpex_mainboard_peratio_analysis.Date。",
+        "per": "本益比；上市來自 TWSE BWIBBU_ALL.PEratio，上櫃來自 TPEx tpex_mainboard_peratio_analysis.PriceEarningRatio。這不是財報期別欄位，而是交易所估值資料日的指標。",
+        "pbr": "股價淨值比；上市來自 TWSE BWIBBU_ALL.PBratio，上櫃來自 TPEx tpex_mainboard_peratio_analysis.PriceBookRatio。",
+        "dividend_yield_pct": "殖利率；上市來自 TWSE BWIBBU_ALL.DividendYield，上櫃來自 TPEx tpex_mainboard_peratio_analysis.YieldRatio。來源原值是百分比數字，Excel 轉成百分比格式顯示。",
+        "revenue_period": "月營收期別；來自 TWSE t187ap05_L 或 TPEx mopsfin_t187ap05_O 的資料年月，民國年月會轉成西元 YYYY-MM。",
+        "monthly_revenue": "月營收，來源為 t187ap05_L/O 的營業收入-當月營收；單位依交易所公開資料欄位，以仟元呈現。",
+        "monthly_revenue_mom_pct": "月營收月增率，來源為 t187ap05_L/O 的營業收入-上月比較增減(%)。",
+        "monthly_revenue_yoy_pct": "月營收年增率，來源為 t187ap05_L/O 的營業收入-去年同月增減(%)。",
+        "cumulative_revenue_yoy_pct": "累計營收年增率，來源為 t187ap05_L/O 的累計營業收入-前期比較增減(%)。",
+        "financial_period": "EPS、財報營業收入、營業利益、稅後淨利與利潤率使用的財報期別；由年度/Year 加季別轉成 YYYYQn。",
+        "eps": "每股盈餘；上市來自 TWSE t187ap14_L.基本每股盈餘(元)，上櫃來自 TPEx mopsfin_t187ap14_O.基本每股盈餘。",
+        "financial_revenue": "財報營業收入；上市來自 TWSE t187ap14_L，上櫃來自 TPEx mopsfin_t187ap14_O，單位以公開資料欄位常用仟元呈現。",
+        "operating_income": "營業利益；上市來自 TWSE t187ap14_L，上櫃來自 TPEx mopsfin_t187ap14_O，單位以仟元呈現。",
+        "net_income": "稅後淨利；上市來自 TWSE t187ap14_L，上櫃來自 TPEx mopsfin_t187ap14_O，單位以仟元呈現。",
+        "gross_margin_pct": "毛利率；上市來自 TWSE t187ap17_L.毛利率(%)(營業毛利)/(營業收入)。上櫃目前未找到穩定 TPEx OpenAPI 對應欄位，暫留空。",
+        "operating_margin_pct": "營業利益率；上市優先使用 TWSE t187ap17_L.營業利益率(%)，上櫃以 mopsfin_t187ap14_O 的營業利益 / 營業收入計算。",
+        "net_margin_pct": "稅後淨利率；上市優先使用 TWSE t187ap17_L.稅後純益率(%)，上櫃以 mopsfin_t187ap14_O 的稅後淨利 / 營業收入計算。",
+        "fundamentals_status": "基本面抓取狀態；顯示已抓到、缺少或略過基本面資料。",
+        "fundamentals_source": "基本面資料來源；列出本列基本面欄位使用的 TWSE/TPEx 端點。",
+        "fundamentals_note": "基本面資料備註；例如上櫃毛利率暫缺公開穩定端點、ROE 尚未納入等限制。",
     }
     rows = []
     for key, value in definitions.items():
@@ -1023,6 +1369,31 @@ def guide_rows() -> list[dict[str, str]]:
             "description": CNYES_DATA_SOURCE_NOTE,
         },
         {
+            "section": "資料來源",
+            "item": "本益比/股價淨值比/殖利率",
+            "description": "這三欄不是鉅亨資料，也不是財報期別資料；上市來自 TWSE BWIBBU_ALL，上櫃來自 TPEx tpex_mainboard_peratio_analysis，表頭括號顯示該次估值資料日。",
+        },
+        {
+            "section": "資料來源",
+            "item": "月營收資料",
+            "description": "月營收、月增率、年增率與累計年增率來自 TWSE t187ap05_L 或 TPEx mopsfin_t187ap05_O，表頭括號顯示營收期別，例如 2026-05。",
+        },
+        {
+            "section": "資料來源",
+            "item": "財報資料",
+            "description": "EPS、財報營業收入、營業利益、稅後淨利與利潤率依財報期別呈現；上市使用 TWSE t187ap14_L/t187ap17_L，上櫃使用 TPEx mopsfin_t187ap14_O，表頭括號顯示例如 2026Q1。",
+        },
+        {
+            "section": "資料來源",
+            "item": "基本面限制",
+            "description": "上櫃毛利率目前沒有確認到穩定 TPEx OpenAPI 對應欄位，先留空；ROE 也暫未納入，因公開端點尚未確認穩定權益資料來源。",
+        },
+        {
+            "section": "資料來源",
+            "item": "毛利率註記",
+            "description": "毛利率欄位上市有資料，來源是 TWSE t187ap17_L；上櫃目前空白，不會用營業利益率代替，以免混淆兩種不同指標。",
+        },
+        {
             "section": "爬取方式",
             "item": "TWSE 上市收盤行情",
             "description": "使用 TWSE OpenAPI JSON 端點 STOCK_DAY_ALL；一次下載上市每日收盤行情，不逐檔爬個股頁。",
@@ -1041,6 +1412,21 @@ def guide_rows() -> list[dict[str, str]]:
             "section": "爬取方式",
             "item": "TPEx 上櫃基本資料",
             "description": "使用 TPEx OpenAPI JSON 端點 mopsfin_t187ap03_O；一次下載上櫃公司基本資料，用來補股票名稱、公司全名、產業別與上櫃日期。",
+        },
+        {
+            "section": "爬取方式",
+            "item": "交易所估值指標",
+            "description": "上市一次下載 TWSE BWIBBU_ALL；上櫃一次下載 TPEx tpex_mainboard_peratio_analysis。這批資料提供本益比、股價淨值比與殖利率，依股票代號 join 到同一列。",
+        },
+        {
+            "section": "爬取方式",
+            "item": "交易所月營收",
+            "description": "上市一次下載 TWSE t187ap05_L；上櫃一次下載 TPEx mopsfin_t187ap05_O。這批資料提供月營收、月增率、年增率與累計年增率。",
+        },
+        {
+            "section": "爬取方式",
+            "item": "交易所財報資料",
+            "description": "上市一次下載 TWSE t187ap14_L 與 t187ap17_L；上櫃一次下載 TPEx mopsfin_t187ap14_O。這批資料提供 EPS、損益欄位與部分利潤率。",
         },
         {
             "section": "爬取方式",
@@ -1223,6 +1609,12 @@ CNYES_STATUS_LABELS = {
     "missing": "缺少鉅亨資料",
 }
 
+FUNDAMENTALS_STATUS_LABELS = {
+    "ok": "已抓到基本面資料",
+    "missing": "缺少基本面資料",
+    "skipped": "略過基本面抓取",
+}
+
 
 def confidence_note_label(value: Any) -> str:
     text = str(value or "")
@@ -1249,6 +1641,8 @@ def display_cell_value(column: str, value: Any) -> Any:
         return confidence_note_label(value)
     if column == "cnyes_status":
         return CNYES_STATUS_LABELS.get(str(value or ""), value)
+    if column == "fundamentals_status":
+        return FUNDAMENTALS_STATUS_LABELS.get(str(value or ""), value)
     return value
 
 
@@ -1332,6 +1726,9 @@ def xlsx_sheet_xml(
         "target_median",
         "fe_stddev",
         "cnyes_last",
+        "per",
+        "pbr",
+        "eps",
     }
     integer_cols = {
         "trade_volume",
@@ -1343,6 +1740,10 @@ def xlsx_sheet_xml(
         "valuation_age_days",
         "cnyes_attempts",
         "rows",
+        "monthly_revenue",
+        "financial_revenue",
+        "operating_income",
+        "net_income",
     }
     number_cols = decimal_cols.union(integer_cols)
     for row_idx, row_values in enumerate(table, start=1):
@@ -1540,6 +1941,7 @@ def write_xlsx(path: Path, sheets: list[tuple[str, list[dict[str, Any]], list[st
 
 
 def build_workbook_rows(rows: list[dict[str, Any]], statuses: list[SourceStatus], args: argparse.Namespace) -> list[tuple[str, list[dict[str, Any]], list[str]]]:
+    set_column_label_periods(rows)
     for row in rows:
         if not row.get("industry_name"):
             row["industry_name"] = industry_name_for(row.get("industry"))
@@ -1576,6 +1978,7 @@ def build_workbook_rows(rows: list[dict[str, Any]], statuses: list[SourceStatus]
 
 
 def build_lite_workbook_rows(rows: list[dict[str, Any]], statuses: list[SourceStatus], args: argparse.Namespace) -> list[tuple[str, list[dict[str, Any]], list[str]]]:
+    set_column_label_periods(rows)
     for row in rows:
         if not row.get("industry_name"):
             row["industry_name"] = industry_name_for(row.get("industry"))
@@ -1623,6 +2026,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--min-estimates", type=int, default=env_int(env, "TW_STOCK_MIN_ESTIMATES"))
     parser.add_argument("--excel-output", choices=["full", "lite", "both"], default=env_value(env, "TW_STOCK_EXCEL_OUTPUT"))
     parser.add_argument("--skip-cnyes", action="store_true")
+    parser.add_argument("--skip-fundamentals", action="store_true")
     parser.add_argument("--cnyes-delay", type=float, default=env_float(env, "TW_STOCK_CNYES_DELAY"))
     parser.add_argument("--cnyes-retries", type=int, default=env_int(env, "TW_STOCK_CNYES_RETRIES"))
     parser.add_argument("--cnyes-backoff", type=float, default=env_float(env, "TW_STOCK_CNYES_BACKOFF"))
@@ -1653,6 +2057,7 @@ def main(argv: list[str]) -> int:
         print("No stocks found for the selected universe.", file=sys.stderr)
         return 2
 
+    fundamentals = fetch_fundamentals(stocks, args.skip_fundamentals, statuses)
     targets = fetch_cnyes_targets(
         stocks,
         args.skip_cnyes,
@@ -1666,7 +2071,7 @@ def main(argv: list[str]) -> int:
         args.cnyes_error_stop_rate,
         statuses,
     )
-    rows = build_rows(stocks, closes, targets, args)
+    rows = build_rows(stocks, closes, targets, fundamentals, args)
     date_part = report_date(rows).replace("-", "")
     generated_time_part = datetime.now().strftime("%H%M%S")
     suffix = ""

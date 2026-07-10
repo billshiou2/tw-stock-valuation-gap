@@ -48,6 +48,83 @@ OTC company profiles:
 
 `https://www.tpex.org.tw/openapi/v1/mopsfin_t187ap03_O`
 
+## Exchange Fundamentals
+
+These fields are appended to the right side of the joined stock rows. They are public exchange datasets and are not Cnyes target-price data.
+
+### PER / PBR / Dividend Yield
+
+Listed stocks:
+
+`https://openapi.twse.com.tw/v1/exchangeReport/BWIBBU_ALL`
+
+Useful fields:
+
+- `Date`: data date shown in Excel headers.
+- `Code`: stock/security code.
+- `PEratio`: PER.
+- `DividendYield`: dividend yield. The source value is a percent number; the workbook stores it as an Excel percent.
+- `PBratio`: PBR.
+
+OTC stocks:
+
+`https://www.tpex.org.tw/openapi/v1/tpex_mainboard_peratio_analysis`
+
+Useful fields:
+
+- `Date`: data date shown in Excel headers.
+- `SecuritiesCompanyCode`: stock/security code.
+- `PriceEarningRatio`: PER.
+- `YieldRatio`: dividend yield. The source value is a percent number; the workbook stores it as an Excel percent.
+- `PriceBookRatio`: PBR.
+
+### Monthly Revenue
+
+Listed stocks:
+
+`https://openapi.twse.com.tw/v1/opendata/t187ap05_L`
+
+OTC stocks:
+
+`https://www.tpex.org.tw/openapi/v1/mopsfin_t187ap05_O`
+
+Useful fields:
+
+- `資料年月`: revenue period, converted from ROC year/month to `YYYY-MM`.
+- `公司代號`: stock/security code.
+- `營業收入-當月營收`: monthly revenue, shown as thousand NTD.
+- `營業收入-上月比較增減(%)`: month-over-month revenue change.
+- `營業收入-去年同月增減(%)`: year-over-year revenue change.
+- `累計營業收入-前期比較增減(%)`: cumulative revenue year-over-year change.
+
+### EPS / Income / Margins
+
+Listed EPS and income:
+
+`https://openapi.twse.com.tw/v1/opendata/t187ap14_L`
+
+Listed margin ratios:
+
+`https://openapi.twse.com.tw/v1/opendata/t187ap17_L`
+
+OTC EPS and income:
+
+`https://www.tpex.org.tw/openapi/v1/mopsfin_t187ap14_O`
+
+Useful fields:
+
+- `年度` / `Year` plus `季別`: financial period, converted to `YYYYQn`.
+- `基本每股盈餘(元)` / `基本每股盈餘`: EPS.
+- `營業收入`, `營業利益`, `稅後淨利`: financial statement values, shown as thousand NTD.
+- TWSE `t187ap17_L` provides listed-stock gross margin, operating margin, and net margin directly.
+- OTC operating margin and net margin are calculated from TPEx income fields when revenue is available.
+
+Current limitations:
+
+- OTC gross margin is left blank because a stable TPEx OpenAPI margin-ratio field has not been confirmed.
+- Do not substitute OTC operating margin into gross margin; these are different profitability measures.
+- ROE is not included yet because a stable public equity-data source has not been confirmed.
+
 ## Cnyes Consensus Target Valuation
 
 Cnyes human UI URL pattern:
