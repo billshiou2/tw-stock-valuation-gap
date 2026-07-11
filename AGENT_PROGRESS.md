@@ -1,5 +1,10 @@
 # Agent Progress
 
+## 2026-07-12
+
+- Final pre-Git check regenerated `output/tw_valuation_gap_20260709_000616_no_cnyes.xlsx` and `_lite.xlsx` from current code with 25 listed + 25 OTC rows. Both files have valuation-source XML width 40 versus a longest source value length of 36, no blank source columns, zero row-level ROE notes, and zero blank cell nodes. Excel COM opened full in 163 ms and lite in 90 ms without repair and reported an effective source column width of 39.22 with the full TPEx endpoint visible. `py_compile`, `git diff --check`, and ignore checks passed.
+- Widened only the user-facing `估值資料來源` column from 28 to 40 so the longest current value, `TPEx tpex_mainboard_peratio_analysis`, remains within the cell. Other source columns retain their existing widths to avoid unnecessarily widening the workbook.
+
 ## 2026-07-11
 
 - Final pre-Git overall check generated `output/tw_valuation_gap_20260709_205053_no_cnyes.xlsx` and `_lite.xlsx` from the current code with 25 listed + 25 OTC rows. Validation found 47 complete and 3 partial fundamentals groups, no blank valuation/monthly-revenue/financial source cells, `TWSE`/`TPEx` exchange-source values split 25/25, zero row-level ROE notes, exchange-source XML width 12, and zero blank cell nodes. Excel COM opened full in 182 ms and lite in 91 ms without repair; `py_compile` and `git diff --check` passed. `.env`, `output/`, and `tmp/` remain ignored and no environment keys were changed in this work.

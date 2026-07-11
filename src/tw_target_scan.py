@@ -1895,6 +1895,8 @@ def xlsx_sheet_xml(
             width = 28
         if column in {"valuation_source", "monthly_revenue_source", "financial_source", "fundamentals_source", "fundamentals_note", "exchange_note"}:
             width = 28
+        if column == "valuation_source":
+            width = 40
         parts.append(f'<col min="{idx}" max="{idx}" width="{width}" customWidth="1"/>')
     parts.append("</cols><sheetData>")
 
