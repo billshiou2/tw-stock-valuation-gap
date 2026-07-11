@@ -63,7 +63,7 @@ Useful fields:
 - `Date`: data date shown in Excel headers.
 - `Code`: stock/security code.
 - `PEratio`: PER.
-- `DividendYield`: dividend yield. The source value is a percent number; the workbook stores it as an Excel percent.
+- `DividendYield`: dividend yield. The source value is a percent number; the workbook stores it as an Excel percent. If the official field is blank, the adjacent dividend-yield note says so explicitly instead of labeling the whole fundamentals fetch as failed.
 - `PBratio`: PBR.
 
 OTC stocks:
@@ -75,7 +75,7 @@ Useful fields:
 - `Date`: data date shown in Excel headers.
 - `SecuritiesCompanyCode`: stock/security code.
 - `PriceEarningRatio`: PER.
-- `YieldRatio`: dividend yield. The source value is a percent number; the workbook stores it as an Excel percent.
+- `YieldRatio`: dividend yield. The source value is a percent number; the workbook stores it as an Excel percent. The adjacent note distinguishes an official blank field from a missing valuation row or parse problem.
 - `PriceBookRatio`: PBR.
 
 ### Monthly Revenue

@@ -269,6 +269,17 @@ def percent_value(value: Any) -> float | None:
     return number / 100.0
 
 
+def dividend_yield_note(valuation_row: dict[str, Any], raw_value: Any, parsed_value: float | None) -> str:
+    if not valuation_row:
+        return "未抓到官方估值資料"
+    raw_text = str(raw_value or "").strip()
+    if not raw_text or raw_text in {"-", "--", "N/A", "null"}:
+        return "官方欄位空白（非爬取失敗）"
+    if parsed_value is None:
+        return "官方來源殖利率格式無法解析"
+    return ""
+
+
 def parse_date(value: str) -> date | None:
     if not value:
         return None
@@ -464,7 +475,8 @@ def fetch_fundamentals(
             valuation_metric_date = normalize_date(clean_code(valuation_row.get("Date")))
             per = to_float(valuation_row.get("PEratio"))
             pbr = to_float(valuation_row.get("PBratio"))
-            dividend_yield = percent_value(valuation_row.get("DividendYield"))
+            raw_dividend_yield = valuation_row.get("DividendYield")
+            dividend_yield = percent_value(raw_dividend_yield)
             revenue_period = normalize_month(clean_code(revenue_row.get("資料年月")))
             financial_period = normalize_period(eps_row.get("年度"), eps_row.get("季別"))
             financial_revenue = to_float(eps_row.get("營業收入"))
@@ -480,7 +492,8 @@ def fetch_fundamentals(
             valuation_metric_date = normalize_date(clean_code(valuation_row.get("Date")))
             per = to_float(valuation_row.get("PriceEarningRatio"))
             pbr = to_float(valuation_row.get("PriceBookRatio"))
-            dividend_yield = percent_value(valuation_row.get("YieldRatio"))
+            raw_dividend_yield = valuation_row.get("YieldRatio")
+            dividend_yield = percent_value(raw_dividend_yield)
             revenue_period = normalize_month(clean_code(revenue_row.get("資料年月")))
             financial_period = normalize_period(eps_row.get("Year") or eps_row.get("年度"), eps_row.get("季別"))
             financial_revenue = to_float(eps_row.get("營業收入"))
@@ -514,6 +527,7 @@ def fetch_fundamentals(
             "per": per,
             "pbr": pbr,
             "dividend_yield_pct": dividend_yield,
+            "dividend_yield_note": dividend_yield_note(valuation_row, raw_dividend_yield, dividend_yield),
             "revenue_period": revenue_period,
             "monthly_revenue": to_float(revenue_row.get("營業收入-當月營收")),
             "monthly_revenue_mom_pct": percent_value(revenue_row.get("營業收入-上月比較增減(%)")),
@@ -810,6 +824,7 @@ def build_rows(
             "per": fundamental_row.get("per"),
             "pbr": fundamental_row.get("pbr"),
             "dividend_yield_pct": fundamental_row.get("dividend_yield_pct"),
+            "dividend_yield_note": fundamental_row.get("dividend_yield_note", ""),
             "revenue_period": fundamental_row.get("revenue_period", ""),
             "monthly_revenue": fundamental_row.get("monthly_revenue"),
             "monthly_revenue_mom_pct": fundamental_row.get("monthly_revenue_mom_pct"),
@@ -888,6 +903,7 @@ def column_order() -> list[str]:
         "per",
         "pbr",
         "dividend_yield_pct",
+        "dividend_yield_note",
         "revenue_period",
         "monthly_revenue",
         "monthly_revenue_mom_pct",
@@ -953,6 +969,7 @@ def stale_column_order() -> list[str]:
         "per",
         "pbr",
         "dividend_yield_pct",
+        "dividend_yield_note",
         "revenue_period",
         "monthly_revenue_yoy_pct",
         "cumulative_revenue_yoy_pct",
@@ -995,6 +1012,7 @@ def lite_column_order() -> list[str]:
         "per",
         "pbr",
         "dividend_yield_pct",
+        "dividend_yield_note",
         "revenue_period",
         "monthly_revenue_yoy_pct",
         "cumulative_revenue_yoy_pct",
@@ -1176,6 +1194,7 @@ def column_label(column: str) -> str:
         "per": "本益比",
         "pbr": "股價淨值比",
         "dividend_yield_pct": "殖利率",
+        "dividend_yield_note": "殖利率資料備註",
         "revenue_period": "營收期別",
         "monthly_revenue": "月營收(仟元)",
         "monthly_revenue_mom_pct": "月營收月增率",
@@ -1207,7 +1226,7 @@ def column_label(column: str) -> str:
     label = labels.get(column, column)
     period = COLUMN_LABEL_PERIODS.get(column)
     if period:
-        return f"{label}({period})"
+        return f"{label}\n({period})"
     return label
 
 
@@ -1276,6 +1295,7 @@ def dictionary_rows() -> list[dict[str, str]]:
         "per": "本益比；上市來自 TWSE BWIBBU_ALL.PEratio，上櫃來自 TPEx tpex_mainboard_peratio_analysis.PriceEarningRatio。這不是財報期別欄位，而是交易所估值資料日的指標。",
         "pbr": "股價淨值比；上市來自 TWSE BWIBBU_ALL.PBratio，上櫃來自 TPEx tpex_mainboard_peratio_analysis.PriceBookRatio。",
         "dividend_yield_pct": "殖利率；上市來自 TWSE BWIBBU_ALL.DividendYield，上櫃來自 TPEx tpex_mainboard_peratio_analysis.YieldRatio。來源原值是百分比數字，Excel 轉成百分比格式顯示。",
+        "dividend_yield_note": "殖利率逐欄狀態；空白殖利率會區分官方來源該日欄位空白、整筆官方估值資料未抓到，或來源格式無法解析。官方欄位空白不代表整批基本面爬取失敗，也不能單憑空白斷定公司是否配息。",
         "revenue_period": "月營收期別；來自 TWSE t187ap05_L 或 TPEx mopsfin_t187ap05_O 的資料年月，民國年月會轉成西元 YYYY-MM。",
         "monthly_revenue": "月營收，來源為 t187ap05_L/O 的營業收入-當月營收；單位依交易所公開資料欄位，以仟元呈現。",
         "monthly_revenue_mom_pct": "月營收月增率，來源為 t187ap05_L/O 的營業收入-上月比較增減(%)。",
@@ -1295,7 +1315,7 @@ def dictionary_rows() -> list[dict[str, str]]:
     }
     rows = []
     for key, value in definitions.items():
-        label = column_label(key)
+        label = column_label(key).replace("\n", "")
         field = f"{label} ({key})" if label != key else key
         rows.append({"field": field, "description": value})
     return rows
@@ -1371,7 +1391,7 @@ def guide_rows() -> list[dict[str, str]]:
         {
             "section": "資料來源",
             "item": "本益比/股價淨值比/殖利率",
-            "description": "這三欄不是鉅亨資料，也不是財報期別資料；上市來自 TWSE BWIBBU_ALL，上櫃來自 TPEx tpex_mainboard_peratio_analysis，表頭括號顯示該次估值資料日。",
+            "description": "這三欄不是鉅亨資料，也不是財報期別資料；上市來自 TWSE BWIBBU_ALL，上櫃來自 TPEx tpex_mainboard_peratio_analysis，表頭括號顯示該次估值資料日。若殖利率空白，請看右側的殖利率資料備註，不要直接視為整批爬取失敗。",
         },
         {
             "section": "資料來源",
@@ -1705,11 +1725,68 @@ def xlsx_sheet_xml(
     ]
     for idx, column in enumerate(columns, start=1):
         label = column_label(column)
-        width = min(42, max(10, len(label) * 2 + 2))
+        width = min(26, max(10, len(label) + 4))
         if column in {"cnyes_url", "company_name", "cnyes_error", "confidence_note"}:
-            width = 28
+            width = 24
         if column == "cnyes_source":
+            width = 18
+        if column == "section":
+            width = 14
+        if column == "item":
+            width = 28
+        if column == "description":
+            width = 72
+        if column == "field":
+            width = 36
+        if column == "generated_at":
             width = 20
+        if column == "source":
+            width = 28
+        if column == "status":
+            width = 12
+        if column == "rows":
+            width = 12
+        if column == "data_date":
+            width = 14
+        if column == "url":
+            width = 60
+        if column == "message":
+            width = 36
+        if column in {"listing_date", "close_date"}:
+            width = 14
+        if column == "target_date":
+            width = 14
+        if column in {"target_high", "target_low", "target_mean", "target_median"}:
+            width = 14
+        if column in {"num_est", "fe_up", "fe_down", "currency"}:
+            width = 12
+        if column == "fe_stddev":
+            width = 16
+        if column == "cnyes_last":
+            width = 14
+        if column in {
+            "valuation_metric_date",
+            "per",
+            "pbr",
+            "dividend_yield_pct",
+            "revenue_period",
+            "monthly_revenue_mom_pct",
+            "monthly_revenue_yoy_pct",
+            "cumulative_revenue_yoy_pct",
+            "financial_period",
+            "eps",
+            "gross_margin_pct",
+            "operating_margin_pct",
+            "net_margin_pct",
+            "fundamentals_status",
+        }:
+            width = min(width, 18)
+        if column == "fundamentals_status":
+            width = 20
+        if column == "dividend_yield_note":
+            width = 24
+        if column in {"fundamentals_source", "fundamentals_note", "exchange_note"}:
+            width = 28
         parts.append(f'<col min="{idx}" max="{idx}" width="{width}" customWidth="1"/>')
     parts.append("</cols><sheetData>")
 
@@ -1747,7 +1824,10 @@ def xlsx_sheet_xml(
     }
     number_cols = decimal_cols.union(integer_cols)
     for row_idx, row_values in enumerate(table, start=1):
-        parts.append(f'<row r="{row_idx}">')
+        row_attrs = f' r="{row_idx}"'
+        if row_idx == 1:
+            row_attrs += ' ht="40" customHeight="1"'
+        parts.append(f'<row{row_attrs}>')
         for col_idx, value in enumerate(row_values, start=1):
             ref = cell_ref(row_idx, col_idx)
             column = columns[col_idx - 1]
@@ -1762,7 +1842,7 @@ def xlsx_sheet_xml(
                 style = 5
 
             if value is None or value == "":
-                parts.append(f'<c r="{ref}" s="{style}"/>')
+                continue
             elif row_idx > 1 and isinstance(value, (int, float)) and column in percent_cols.union(number_cols):
                 parts.append(f'<c r="{ref}" s="{style}"><v>{value}</v></c>')
             else:
@@ -1855,7 +1935,7 @@ def styles_xml() -> str:
 <fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills>
 <borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>
 <cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
-<cellXfs count="6"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf><xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/><xf numFmtId="165" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/><xf numFmtId="166" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/><xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1"/></cellXfs>
+<cellXfs count="6"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf><xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/><xf numFmtId="165" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/><xf numFmtId="166" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/><xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1"/></cellXfs>
 <cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>
 </styleSheet>"""
 
