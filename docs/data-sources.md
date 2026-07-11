@@ -80,6 +80,8 @@ Useful fields:
 
 ### Monthly Revenue
 
+Monthly revenue is a separate official dataset from the PER/PBR/dividend-yield valuation endpoints. A stock can therefore have valuation data while its monthly-revenue row is absent or individual growth fields are blank. The workbook exposes this distinction in the adjacent monthly-revenue note column.
+
 Listed stocks:
 
 `https://openapi.twse.com.tw/v1/opendata/t187ap05_L`
@@ -157,3 +159,8 @@ TWSE MIS can query listed and OTC recent quote data:
 `https://mis.twse.com.tw/stock/api/getStockInfo.jsp`
 
 This endpoint is no longer the default because the report is based on daily closing prices.
+### 基本面欄位的來源、備註與整體狀態
+
+- 「資料來源」表示該組欄位使用的官方端點；即使該股票沒有資料列，來源欄仍會顯示程式查詢的端點。
+- 「資料備註」說明官方端點沒有該股票，或官方資料列中有哪些欄位缺值。
+- 「基本面整體狀態」只彙總估值、月營收、財報三組資料列是否齊全；個別欄位缺值仍以各組備註為準。

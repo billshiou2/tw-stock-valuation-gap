@@ -269,14 +269,53 @@ def percent_value(value: Any) -> float | None:
     return number / 100.0
 
 
-def dividend_yield_note(valuation_row: dict[str, Any], raw_value: Any, parsed_value: float | None) -> str:
+def valuation_note(
+    valuation_row: dict[str, Any],
+    per: float | None,
+    pbr: float | None,
+    raw_dividend_yield: Any,
+    dividend_yield: float | None,
+) -> str:
     if not valuation_row:
-        return "未抓到官方估值資料"
-    raw_text = str(raw_value or "").strip()
+        return "官方估值端點未提供該股票資料"
+    missing: list[str] = []
+    if per is None:
+        missing.append("本益比")
+    if pbr is None:
+        missing.append("股價淨值比")
+    raw_text = str(raw_dividend_yield or "").strip()
     if not raw_text or raw_text in {"-", "--", "N/A", "null"}:
-        return "官方欄位空白（非爬取失敗）"
-    if parsed_value is None:
-        return "官方來源殖利率格式無法解析"
+        missing.append("殖利率")
+    elif dividend_yield is None:
+        return "官方殖利率格式無法解析"
+    if missing:
+        return "官方欄位缺值：" + "、".join(missing)
+    return ""
+
+
+def monthly_revenue_note(
+    revenue_row: dict[str, Any],
+    revenue_period: str,
+    monthly_revenue: float | None,
+    monthly_revenue_mom: float | None,
+    monthly_revenue_yoy: float | None,
+    cumulative_revenue_yoy: float | None,
+) -> str:
+    if not revenue_row:
+        return "官方月營收端點未提供該股票資料"
+    missing: list[str] = []
+    if not revenue_period:
+        missing.append("月營收期別")
+    if monthly_revenue is None:
+        missing.append("月營收")
+    if monthly_revenue_mom is None:
+        missing.append("月營收月增率")
+    if monthly_revenue_yoy is None:
+        missing.append("月營收年增率")
+    if cumulative_revenue_yoy is None:
+        missing.append("累計營收年增率")
+    if missing:
+        return "官方欄位缺值：" + "、".join(missing)
     return ""
 
 
@@ -425,6 +464,18 @@ def fundamentals_source(market: str) -> str:
     return ""
 
 
+def valuation_source(market: str) -> str:
+    return "TWSE BWIBBU_ALL" if market == "tse" else "TPEx tpex_mainboard_peratio_analysis"
+
+
+def monthly_revenue_source(market: str) -> str:
+    return "TWSE t187ap05_L" if market == "tse" else "TPEx mopsfin_t187ap05_O"
+
+
+def financial_source(market: str) -> str:
+    return "TWSE t187ap14_L / t187ap17_L" if market == "tse" else "TPEx mopsfin_t187ap14_O"
+
+
 def fetch_fundamentals(
     stocks: list[StockInfo],
     skip: bool,
@@ -504,36 +555,39 @@ def fetch_fundamentals(
             net_margin = net_income / financial_revenue if net_income is not None and financial_revenue not in {None, 0} else None
 
         notes: list[str] = []
+        monthly_revenue = to_float(revenue_row.get("營業收入-當月營收"))
+        monthly_revenue_mom = percent_value(revenue_row.get("營業收入-上月比較增減(%)"))
+        monthly_revenue_yoy = percent_value(revenue_row.get("營業收入-去年同月增減(%)"))
+        cumulative_revenue_yoy = percent_value(revenue_row.get("累計營業收入-前期比較增減(%)"))
         if stock.market == "tse":
             notes.append("上市毛利率來自 TWSE t187ap17_L")
         if stock.market == "otc":
             notes.append("上櫃毛利率目前未找到穩定 TPEx OpenAPI 欄位，暫留空；請看營業利益率與稅後淨利率")
-        notes.append("ROE 暫未納入，因公開端點尚未確認穩定權益資料")
-        has_any = any(
-            value not in {None, ""}
-            for value in [
-                per,
-                pbr,
-                dividend_yield,
-                revenue_period,
-                financial_period,
-                financial_revenue,
-                operating_income,
-                net_income,
-            ]
-        )
+        available_groups = sum(bool(row) for row in (valuation_row, revenue_row, eps_row))
+        overall_status = "complete" if available_groups == 3 else "partial" if available_groups else "missing"
         result[(stock.market, stock.stock_id)] = {
             "valuation_metric_date": valuation_metric_date,
+            "valuation_source": valuation_source(stock.market),
             "per": per,
             "pbr": pbr,
             "dividend_yield_pct": dividend_yield,
-            "dividend_yield_note": dividend_yield_note(valuation_row, raw_dividend_yield, dividend_yield),
+            "valuation_note": valuation_note(valuation_row, per, pbr, raw_dividend_yield, dividend_yield),
             "revenue_period": revenue_period,
-            "monthly_revenue": to_float(revenue_row.get("營業收入-當月營收")),
-            "monthly_revenue_mom_pct": percent_value(revenue_row.get("營業收入-上月比較增減(%)")),
-            "monthly_revenue_yoy_pct": percent_value(revenue_row.get("營業收入-去年同月增減(%)")),
-            "cumulative_revenue_yoy_pct": percent_value(revenue_row.get("累計營業收入-前期比較增減(%)")),
+            "monthly_revenue_source": monthly_revenue_source(stock.market),
+            "monthly_revenue_note": monthly_revenue_note(
+                revenue_row,
+                revenue_period,
+                monthly_revenue,
+                monthly_revenue_mom,
+                monthly_revenue_yoy,
+                cumulative_revenue_yoy,
+            ),
+            "monthly_revenue": monthly_revenue,
+            "monthly_revenue_mom_pct": monthly_revenue_mom,
+            "monthly_revenue_yoy_pct": monthly_revenue_yoy,
+            "cumulative_revenue_yoy_pct": cumulative_revenue_yoy,
             "financial_period": financial_period,
+            "financial_source": financial_source(stock.market),
             "eps": to_float(eps_row.get("基本每股盈餘(元)") or eps_row.get("基本每股盈餘")),
             "financial_revenue": financial_revenue,
             "operating_income": operating_income,
@@ -542,7 +596,7 @@ def fetch_fundamentals(
             "operating_margin_pct": operating_margin,
             "net_margin_pct": net_margin,
             "fundamentals_source": fundamentals_source(stock.market),
-            "fundamentals_status": "ok" if has_any else "missing",
+            "fundamentals_status": overall_status,
             "fundamentals_note": "；".join(notes),
         }
     return result
@@ -580,6 +634,19 @@ def select_universe(
                 selected.append(stock)
                 seen.add(key)
     return selected
+
+
+def limit_stocks(stocks: list[StockInfo], limit: int) -> list[StockInfo]:
+    if limit <= 0 or len(stocks) <= limit:
+        return stocks
+    markets = {stock.market for stock in stocks}
+    if markets == {"tse", "otc"}:
+        tse_limit = limit // 2
+        otc_limit = limit - tse_limit
+        tse = [stock for stock in stocks if stock.market == "tse"][:tse_limit]
+        otc = [stock for stock in stocks if stock.market == "otc"][:otc_limit]
+        return sorted(tse + otc, key=lambda stock: (stock.market, stock.stock_id))
+    return stocks[:limit]
 
 
 def detect_cnyes_source(page_text: str) -> str:
@@ -821,16 +888,20 @@ def build_rows(
                 CNYES_NOT_FETCHED_SOURCE if args.skip_cnyes else CNYES_NO_TARGET_SOURCE,
             ),
             "valuation_metric_date": fundamental_row.get("valuation_metric_date", ""),
+            "valuation_source": fundamental_row.get("valuation_source", ""),
             "per": fundamental_row.get("per"),
             "pbr": fundamental_row.get("pbr"),
             "dividend_yield_pct": fundamental_row.get("dividend_yield_pct"),
-            "dividend_yield_note": fundamental_row.get("dividend_yield_note", ""),
+            "valuation_note": fundamental_row.get("valuation_note", ""),
             "revenue_period": fundamental_row.get("revenue_period", ""),
+            "monthly_revenue_source": fundamental_row.get("monthly_revenue_source", ""),
+            "monthly_revenue_note": fundamental_row.get("monthly_revenue_note", ""),
             "monthly_revenue": fundamental_row.get("monthly_revenue"),
             "monthly_revenue_mom_pct": fundamental_row.get("monthly_revenue_mom_pct"),
             "monthly_revenue_yoy_pct": fundamental_row.get("monthly_revenue_yoy_pct"),
             "cumulative_revenue_yoy_pct": fundamental_row.get("cumulative_revenue_yoy_pct"),
             "financial_period": fundamental_row.get("financial_period", ""),
+            "financial_source": fundamental_row.get("financial_source", ""),
             "eps": fundamental_row.get("eps"),
             "financial_revenue": fundamental_row.get("financial_revenue"),
             "operating_income": fundamental_row.get("operating_income"),
@@ -900,16 +971,20 @@ def column_order() -> list[str]:
         "cnyes_source",
         "cnyes_url",
         "valuation_metric_date",
+        "valuation_source",
+        "valuation_note",
         "per",
         "pbr",
         "dividend_yield_pct",
-        "dividend_yield_note",
         "revenue_period",
+        "monthly_revenue_source",
+        "monthly_revenue_note",
         "monthly_revenue",
         "monthly_revenue_mom_pct",
         "monthly_revenue_yoy_pct",
         "cumulative_revenue_yoy_pct",
         "financial_period",
+        "financial_source",
         "eps",
         "financial_revenue",
         "operating_income",
@@ -918,7 +993,6 @@ def column_order() -> list[str]:
         "operating_margin_pct",
         "net_margin_pct",
         "fundamentals_status",
-        "fundamentals_source",
         "fundamentals_note",
     ]
 
@@ -966,14 +1040,18 @@ def stale_column_order() -> list[str]:
         "cnyes_source",
         "cnyes_url",
         "valuation_metric_date",
+        "valuation_source",
+        "valuation_note",
         "per",
         "pbr",
         "dividend_yield_pct",
-        "dividend_yield_note",
         "revenue_period",
+        "monthly_revenue_source",
+        "monthly_revenue_note",
         "monthly_revenue_yoy_pct",
         "cumulative_revenue_yoy_pct",
         "financial_period",
+        "financial_source",
         "eps",
         "operating_margin_pct",
         "net_margin_pct",
@@ -1009,14 +1087,18 @@ def lite_column_order() -> list[str]:
         "cnyes_source",
         "cnyes_url",
         "valuation_metric_date",
+        "valuation_source",
+        "valuation_note",
         "per",
         "pbr",
         "dividend_yield_pct",
-        "dividend_yield_note",
         "revenue_period",
+        "monthly_revenue_source",
+        "monthly_revenue_note",
         "monthly_revenue_yoy_pct",
         "cumulative_revenue_yoy_pct",
         "financial_period",
+        "financial_source",
         "eps",
         "operating_margin_pct",
         "net_margin_pct",
@@ -1077,9 +1159,9 @@ def market_name(market: str) -> str:
 
 def exchange_source(market: str) -> str:
     if market == "tse":
-        return "TWSE: STOCK_DAY_ALL + t187ap03_L"
+        return "TWSE"
     if market == "otc":
-        return "TPEx: tpex_mainboard_daily_close_quotes + mopsfin_t187ap03_O"
+        return "TPEx"
     return ""
 
 
@@ -1191,16 +1273,20 @@ def column_label(column: str) -> str:
         "cnyes_attempts": "鉅亨請求次數",
         "cnyes_source": "鉅亨資料來源",
         "valuation_metric_date": "估值資料日",
+        "valuation_source": "估值資料來源",
+        "valuation_note": "估值資料備註",
         "per": "本益比",
         "pbr": "股價淨值比",
         "dividend_yield_pct": "殖利率",
-        "dividend_yield_note": "殖利率資料備註",
-        "revenue_period": "營收期別",
+        "revenue_period": "月營收期別",
+        "monthly_revenue_source": "月營收資料來源",
+        "monthly_revenue_note": "月營收資料備註",
         "monthly_revenue": "月營收(仟元)",
         "monthly_revenue_mom_pct": "月營收月增率",
         "monthly_revenue_yoy_pct": "月營收年增率",
         "cumulative_revenue_yoy_pct": "累計營收年增率",
         "financial_period": "財報期別",
+        "financial_source": "財報資料來源",
         "eps": "EPS",
         "financial_revenue": "財報營業收入(仟元)",
         "operating_income": "營業利益(仟元)",
@@ -1208,9 +1294,9 @@ def column_label(column: str) -> str:
         "gross_margin_pct": "毛利率",
         "operating_margin_pct": "營業利益率",
         "net_margin_pct": "稅後淨利率",
-        "fundamentals_status": "基本面抓取狀態",
-        "fundamentals_source": "基本面資料來源",
-        "fundamentals_note": "基本面資料備註",
+        "fundamentals_status": "基本面整體狀態",
+        "fundamentals_source": "基本面整體資料來源",
+        "fundamentals_note": "基本面整體備註",
         "generated_at": "產出時間",
         "source": "資料源",
         "status": "狀態",
@@ -1272,7 +1358,7 @@ def dictionary_rows() -> list[dict[str, str]]:
         "trade_volume": "成交股數，單位是股，不是張；TWSE TradeVolume 與 TPEx TradingShares 皆為股數，Excel 以千分位顯示。",
         "trade_value": "成交金額，單位是新台幣元；TWSE TradeValue 與 TPEx TransactionAmount 皆為元，Excel 以千分位顯示。",
         "transactions": "成交筆數，單位是筆；TWSE Transaction 與 TPEx TransactionNumber 皆為筆，Excel 以千分位顯示。",
-        "exchange_source": "交易所資料來源；上市為 TWSE，上櫃為 TPEx，並列出使用的資料端點名稱。",
+        "exchange_source": "交易所資料來源；股票表內精簡顯示上市 TWSE 或上櫃 TPEx，完整端點請看相鄰的交易所資料說明。",
         "exchange_note": "交易所資料說明；說明該列基本資料與收盤行情分別來自哪個來源。",
         "target_mean": "鉅亨 targetValuation 的平均共識目標價（feMean）。",
         "target_median": "鉅亨 targetValuation 的中位共識目標價（feMedian）。",
@@ -1292,16 +1378,20 @@ def dictionary_rows() -> list[dict[str, str]]:
         "cnyes_url": "鉅亨個股頁網址，格式為 https://www.cnyes.com/twstock/{股票代號}；方便人工開啟來源頁，回查該股票頁內嵌的 targetValuation 資料。",
         "cnyes_attempts": "鉅亨個股頁嘗試抓取次數。",
         "valuation_metric_date": "本益比、股價淨值比、殖利率使用的資料日期；上市來自 TWSE BWIBBU_ALL.Date，上櫃來自 TPEx tpex_mainboard_peratio_analysis.Date。",
+        "valuation_source": "估值資料來源；上市為 TWSE BWIBBU_ALL，上櫃為 TPEx tpex_mainboard_peratio_analysis。",
+        "valuation_note": "估值資料備註；區分官方估值端點未提供該股票，以及官方列存在但本益比、股價淨值比或殖利率欄位缺值。",
         "per": "本益比；上市來自 TWSE BWIBBU_ALL.PEratio，上櫃來自 TPEx tpex_mainboard_peratio_analysis.PriceEarningRatio。這不是財報期別欄位，而是交易所估值資料日的指標。",
         "pbr": "股價淨值比；上市來自 TWSE BWIBBU_ALL.PBratio，上櫃來自 TPEx tpex_mainboard_peratio_analysis.PriceBookRatio。",
         "dividend_yield_pct": "殖利率；上市來自 TWSE BWIBBU_ALL.DividendYield，上櫃來自 TPEx tpex_mainboard_peratio_analysis.YieldRatio。來源原值是百分比數字，Excel 轉成百分比格式顯示。",
-        "dividend_yield_note": "殖利率逐欄狀態；空白殖利率會區分官方來源該日欄位空白、整筆官方估值資料未抓到，或來源格式無法解析。官方欄位空白不代表整批基本面爬取失敗，也不能單憑空白斷定公司是否配息。",
         "revenue_period": "月營收期別；來自 TWSE t187ap05_L 或 TPEx mopsfin_t187ap05_O 的資料年月，民國年月會轉成西元 YYYY-MM。",
+        "monthly_revenue_source": "月營收資料來源；上市為 TWSE t187ap05_L，上櫃為 TPEx mopsfin_t187ap05_O。",
+        "monthly_revenue_note": "月營收逐欄狀態；區分官方月營收端點未提供該股票資料，以及官方列存在但月營收期別、月營收、月增率、年增率或累計年增率缺值。估值資料與月營收資料來自不同端點，不能用估值有值推定月營收也應有值。",
         "monthly_revenue": "月營收，來源為 t187ap05_L/O 的營業收入-當月營收；單位依交易所公開資料欄位，以仟元呈現。",
         "monthly_revenue_mom_pct": "月營收月增率，來源為 t187ap05_L/O 的營業收入-上月比較增減(%)。",
         "monthly_revenue_yoy_pct": "月營收年增率，來源為 t187ap05_L/O 的營業收入-去年同月增減(%)。",
         "cumulative_revenue_yoy_pct": "累計營收年增率，來源為 t187ap05_L/O 的累計營業收入-前期比較增減(%)。",
         "financial_period": "EPS、財報營業收入、營業利益、稅後淨利與利潤率使用的財報期別；由年度/Year 加季別轉成 YYYYQn。",
+        "financial_source": "財報資料來源；上市為 TWSE t187ap14_L/t187ap17_L，上櫃為 TPEx mopsfin_t187ap14_O。",
         "eps": "每股盈餘；上市來自 TWSE t187ap14_L.基本每股盈餘(元)，上櫃來自 TPEx mopsfin_t187ap14_O.基本每股盈餘。",
         "financial_revenue": "財報營業收入；上市來自 TWSE t187ap14_L，上櫃來自 TPEx mopsfin_t187ap14_O，單位以公開資料欄位常用仟元呈現。",
         "operating_income": "營業利益；上市來自 TWSE t187ap14_L，上櫃來自 TPEx mopsfin_t187ap14_O，單位以仟元呈現。",
@@ -1309,9 +1399,9 @@ def dictionary_rows() -> list[dict[str, str]]:
         "gross_margin_pct": "毛利率；上市來自 TWSE t187ap17_L.毛利率(%)(營業毛利)/(營業收入)。上櫃目前未找到穩定 TPEx OpenAPI 對應欄位，暫留空。",
         "operating_margin_pct": "營業利益率；上市優先使用 TWSE t187ap17_L.營業利益率(%)，上櫃以 mopsfin_t187ap14_O 的營業利益 / 營業收入計算。",
         "net_margin_pct": "稅後淨利率；上市優先使用 TWSE t187ap17_L.稅後純益率(%)，上櫃以 mopsfin_t187ap14_O 的稅後淨利 / 營業收入計算。",
-        "fundamentals_status": "基本面抓取狀態；顯示已抓到、缺少或略過基本面資料。",
+        "fundamentals_status": "基本面整體狀態；綜合估值、月營收、財報三組官方資料，顯示三組齊全、部分缺少、三組皆缺少或略過。個別欄位缺值請看各組資料備註。",
         "fundamentals_source": "基本面資料來源；列出本列基本面欄位使用的 TWSE/TPEx 端點。",
-        "fundamentals_note": "基本面資料備註；例如上櫃毛利率暫缺公開穩定端點、ROE 尚未納入等限制。",
+        "fundamentals_note": "基本面整體備註；股票列只保留會直接影響該列判讀的資料限制，例如上櫃毛利率暫缺公開穩定端點。ROE 尚未納入的共同限制集中放在使用說明，不在每支股票重複顯示。",
     }
     rows = []
     for key, value in definitions.items():
@@ -1391,12 +1481,17 @@ def guide_rows() -> list[dict[str, str]]:
         {
             "section": "資料來源",
             "item": "本益比/股價淨值比/殖利率",
-            "description": "這三欄不是鉅亨資料，也不是財報期別資料；上市來自 TWSE BWIBBU_ALL，上櫃來自 TPEx tpex_mainboard_peratio_analysis，表頭括號顯示該次估值資料日。若殖利率空白，請看右側的殖利率資料備註，不要直接視為整批爬取失敗。",
+            "description": "這三欄不是鉅亨資料，也不是財報期別資料；上市來自 TWSE BWIBBU_ALL，上櫃來自 TPEx tpex_mainboard_peratio_analysis。估值資料日後會列出估值資料來源與備註；個別欄位空白不等於整批爬取失敗。",
+        },
+        {
+            "section": "資料來源",
+            "item": "估值與月營收資料不同",
+            "description": "估值資料日、本益比、股價淨值比與殖利率使用 BWIBBU_ALL / tpex_mainboard_peratio_analysis；月營收期別、月營收及成長率使用 t187ap05_L / mopsfin_t187ap05_O。兩者是不同官方端點，更新頻率與涵蓋股票可能不同。",
         },
         {
             "section": "資料來源",
             "item": "月營收資料",
-            "description": "月營收、月增率、年增率與累計年增率來自 TWSE t187ap05_L 或 TPEx mopsfin_t187ap05_O，表頭括號顯示營收期別，例如 2026-05。",
+            "description": "月營收、月增率、年增率與累計年增率來自 TWSE t187ap05_L 或 TPEx mopsfin_t187ap05_O，表頭括號顯示月營收期別，例如 2026-05。",
         },
         {
             "section": "資料來源",
@@ -1407,6 +1502,11 @@ def guide_rows() -> list[dict[str, str]]:
             "section": "資料來源",
             "item": "基本面限制",
             "description": "上櫃毛利率目前沒有確認到穩定 TPEx OpenAPI 對應欄位，先留空；ROE 也暫未納入，因公開端點尚未確認穩定權益資料來源。",
+        },
+        {
+            "section": "資料品質",
+            "item": "基本面整體狀態",
+            "description": "只彙總估值、月營收、財報三組官方資料是否有該股票資料列；三組都有為齊全，只有部分有為部分缺少。個別欄位為何空白仍請看估值或月營收資料備註。",
         },
         {
             "section": "資料來源",
@@ -1630,8 +1730,10 @@ CNYES_STATUS_LABELS = {
 }
 
 FUNDAMENTALS_STATUS_LABELS = {
-    "ok": "已抓到基本面資料",
-    "missing": "缺少基本面資料",
+    "ok": "基本面至少有部分資料",
+    "complete": "估值、月營收、財報三組齊全",
+    "partial": "基本面部分資料缺少",
+    "missing": "估值、月營收、財報三組皆缺少",
     "skipped": "略過基本面抓取",
 }
 
@@ -1730,6 +1832,8 @@ def xlsx_sheet_xml(
             width = 24
         if column == "cnyes_source":
             width = 18
+        if column == "exchange_source":
+            width = 12
         if column == "section":
             width = 14
         if column == "item":
@@ -1753,6 +1857,10 @@ def xlsx_sheet_xml(
         if column == "message":
             width = 36
         if column in {"listing_date", "close_date"}:
+            width = 14
+        if column == "valuation_metric_date":
+            width = 14
+        if column == "revenue_period":
             width = 14
         if column == "target_date":
             width = 14
@@ -1783,9 +1891,9 @@ def xlsx_sheet_xml(
             width = min(width, 18)
         if column == "fundamentals_status":
             width = 20
-        if column == "dividend_yield_note":
-            width = 24
-        if column in {"fundamentals_source", "fundamentals_note", "exchange_note"}:
+        if column in {"valuation_note", "monthly_revenue_note"}:
+            width = 28
+        if column in {"valuation_source", "monthly_revenue_source", "financial_source", "fundamentals_source", "fundamentals_note", "exchange_note"}:
             width = 28
         parts.append(f'<col min="{idx}" max="{idx}" width="{width}" customWidth="1"/>')
     parts.append("</cols><sheetData>")
@@ -2099,6 +2207,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--universe", choices=["all", "watchlist"], default=env_value(env, "TW_STOCK_UNIVERSE"))
     parser.add_argument("--market", choices=["all", "tse", "otc"], default=env_value(env, "TW_STOCK_MARKET"))
     parser.add_argument("--watchlist", default="config/watchlist.csv")
+    parser.add_argument("--stock-limit", type=int, default=0, help="Limit output rows for a small balanced test run.")
     parser.add_argument("--output-dir", default="output")
     parser.add_argument("--undervalued-threshold", type=float, default=env_float(env, "TW_STOCK_UNDERVALUED_THRESHOLD"))
     parser.add_argument("--overvalued-threshold", type=float, default=env_float(env, "TW_STOCK_OVERVALUED_THRESHOLD"))
@@ -2133,6 +2242,7 @@ def main(argv: list[str]) -> int:
 
     watchlist = load_watchlist(Path(args.watchlist))
     stocks = select_universe(profiles, watchlist, args.universe, args.market)
+    stocks = limit_stocks(stocks, args.stock_limit)
     if not stocks:
         print("No stocks found for the selected universe.", file=sys.stderr)
         return 2
