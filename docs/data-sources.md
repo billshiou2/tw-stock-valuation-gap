@@ -119,7 +119,8 @@ Useful fields:
 - `基本每股盈餘(元)` / `基本每股盈餘`: EPS.
 - `營業收入`, `營業利益`, `稅後淨利`: financial statement values, shown as thousand NTD.
 - TWSE `t187ap17_L` provides listed-stock gross margin, operating margin, and net margin directly.
-- OTC operating margin and net margin are calculated from TPEx income fields when revenue is available.
+- TPEx `mopsfin_187ap17_O` provides OTC gross margin, operating margin, pretax margin, and net margin directly. Note that this official endpoint name is `mopsfin_187ap17_O` (without the `t` used by many adjacent endpoint names).
+- OTC operating margin and net margin use `mopsfin_187ap17_O` directly; calculation from TPEx income fields is only a fallback when an official ratio field is blank.
 
 Current limitations:
 

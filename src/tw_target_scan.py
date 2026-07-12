@@ -36,6 +36,7 @@ TPEX_REVENUE_URL = "https://www.tpex.org.tw/openapi/v1/mopsfin_t187ap05_O"
 TWSE_EPS_URL = "https://openapi.twse.com.tw/v1/opendata/t187ap14_L"
 TPEX_EPS_URL = "https://www.tpex.org.tw/openapi/v1/mopsfin_t187ap14_O"
 TWSE_MARGIN_URL = "https://openapi.twse.com.tw/v1/opendata/t187ap17_L"
+TPEX_MARGIN_URL = "https://www.tpex.org.tw/openapi/v1/mopsfin_187ap17_O"
 CNYES_STOCK_URL = "https://www.cnyes.com/twstock/{stock_id}"
 CNYES_FACTSET_SOURCE = "鉅亨/FactSet共識"
 CNYES_UNSPECIFIED_SOURCE = "鉅亨共識(來源未明確標示)"
@@ -460,7 +461,7 @@ def fundamentals_source(market: str) -> str:
     if market == "tse":
         return "TWSE: BWIBBU_ALL + t187ap05_L + t187ap14_L + t187ap17_L"
     if market == "otc":
-        return "TPEx: tpex_mainboard_peratio_analysis + mopsfin_t187ap05_O + mopsfin_t187ap14_O"
+        return "TPEx: tpex_mainboard_peratio_analysis + mopsfin_t187ap05_O + mopsfin_t187ap14_O + mopsfin_187ap17_O"
     return ""
 
 
@@ -473,7 +474,7 @@ def monthly_revenue_source(market: str) -> str:
 
 
 def financial_source(market: str) -> str:
-    return "TWSE t187ap14_L / t187ap17_L" if market == "tse" else "TPEx mopsfin_t187ap14_O"
+    return "TWSE t187ap14_L / t187ap17_L" if market == "tse" else "TPEx mopsfin_t187ap14_O / mopsfin_187ap17_O"
 
 
 def fetch_fundamentals(
@@ -494,6 +495,7 @@ def fetch_fundamentals(
     twse_eps: dict[str, dict[str, Any]] = {}
     tpex_eps: dict[str, dict[str, Any]] = {}
     twse_margin: dict[str, dict[str, Any]] = {}
+    tpex_margin: dict[str, dict[str, Any]] = {}
 
     if "tse" in markets:
         twse_valuation = latest_by_code(fetch_json(TWSE_VALUATION_URL, "twse_valuation_metrics", statuses), ("Code",), ("Date",))
@@ -515,6 +517,11 @@ def fetch_fundamentals(
             fetch_json(TPEX_EPS_URL, "tpex_eps_income", statuses),
             ("SecuritiesCompanyCode", "公司代號"),
             ("Year", "年度", "季別", "Date", "出表日期"),
+        )
+        tpex_margin = latest_by_code(
+            fetch_json(TPEX_MARGIN_URL, "tpex_margin_ratios", statuses),
+            ("SecuritiesCompanyCode",),
+            ("Year", "季別", "Date"),
         )
 
     for stock in stocks:
@@ -540,30 +547,36 @@ def fetch_fundamentals(
             valuation_row = tpex_valuation.get(stock.stock_id, {})
             revenue_row = tpex_revenue.get(stock.stock_id, {})
             eps_row = tpex_eps.get(stock.stock_id, {})
+            margin_row = tpex_margin.get(stock.stock_id, {})
             valuation_metric_date = normalize_date(clean_code(valuation_row.get("Date")))
             per = to_float(valuation_row.get("PriceEarningRatio"))
             pbr = to_float(valuation_row.get("PriceBookRatio"))
             raw_dividend_yield = valuation_row.get("YieldRatio")
             dividend_yield = percent_value(raw_dividend_yield)
             revenue_period = normalize_month(clean_code(revenue_row.get("資料年月")))
-            financial_period = normalize_period(eps_row.get("Year") or eps_row.get("年度"), eps_row.get("季別"))
+            financial_period = normalize_period(
+                eps_row.get("Year") or eps_row.get("年度") or margin_row.get("Year"),
+                eps_row.get("季別") or margin_row.get("季別"),
+            )
             financial_revenue = to_float(eps_row.get("營業收入"))
             operating_income = to_float(eps_row.get("營業利益"))
             net_income = to_float(eps_row.get("稅後淨利"))
-            gross_margin = None
-            operating_margin = operating_income / financial_revenue if operating_income is not None and financial_revenue not in {None, 0} else None
-            net_margin = net_income / financial_revenue if net_income is not None and financial_revenue not in {None, 0} else None
+            gross_margin = percent_value(margin_row.get("毛利率"))
+            operating_margin = percent_value(margin_row.get("營業利益率"))
+            net_margin = percent_value(margin_row.get("稅後純益率"))
+            if operating_margin is None and operating_income is not None and financial_revenue not in {None, 0}:
+                operating_margin = operating_income / financial_revenue
+            if net_margin is None and net_income is not None and financial_revenue not in {None, 0}:
+                net_margin = net_income / financial_revenue
 
         notes: list[str] = []
         monthly_revenue = to_float(revenue_row.get("營業收入-當月營收"))
         monthly_revenue_mom = percent_value(revenue_row.get("營業收入-上月比較增減(%)"))
         monthly_revenue_yoy = percent_value(revenue_row.get("營業收入-去年同月增減(%)"))
         cumulative_revenue_yoy = percent_value(revenue_row.get("累計營業收入-前期比較增減(%)"))
-        if stock.market == "tse":
-            notes.append("上市毛利率來自 TWSE t187ap17_L")
-        if stock.market == "otc":
-            notes.append("上櫃毛利率目前未找到穩定 TPEx OpenAPI 欄位，暫留空；請看營業利益率與稅後淨利率")
-        available_groups = sum(bool(row) for row in (valuation_row, revenue_row, eps_row))
+        if not margin_row:
+            notes.append("官方營益分析端點未提供該股票利潤率資料")
+        available_groups = sum((bool(valuation_row), bool(revenue_row), bool(eps_row or margin_row)))
         overall_status = "complete" if available_groups == 3 else "partial" if available_groups else "missing"
         result[(stock.market, stock.stock_id)] = {
             "valuation_metric_date": valuation_metric_date,
@@ -1053,6 +1066,7 @@ def stale_column_order() -> list[str]:
         "financial_period",
         "financial_source",
         "eps",
+        "gross_margin_pct",
         "operating_margin_pct",
         "net_margin_pct",
         "fundamentals_status",
@@ -1100,6 +1114,7 @@ def lite_column_order() -> list[str]:
         "financial_period",
         "financial_source",
         "eps",
+        "gross_margin_pct",
         "operating_margin_pct",
         "net_margin_pct",
         "fundamentals_status",
@@ -1391,17 +1406,17 @@ def dictionary_rows() -> list[dict[str, str]]:
         "monthly_revenue_yoy_pct": "月營收年增率，來源為 t187ap05_L/O 的營業收入-去年同月增減(%)。",
         "cumulative_revenue_yoy_pct": "累計營收年增率，來源為 t187ap05_L/O 的累計營業收入-前期比較增減(%)。",
         "financial_period": "EPS、財報營業收入、營業利益、稅後淨利與利潤率使用的財報期別；由年度/Year 加季別轉成 YYYYQn。",
-        "financial_source": "財報資料來源；上市為 TWSE t187ap14_L/t187ap17_L，上櫃為 TPEx mopsfin_t187ap14_O。",
+        "financial_source": "財報資料來源；上市為 TWSE t187ap14_L/t187ap17_L，上櫃為 TPEx mopsfin_t187ap14_O/mopsfin_187ap17_O。",
         "eps": "每股盈餘；上市來自 TWSE t187ap14_L.基本每股盈餘(元)，上櫃來自 TPEx mopsfin_t187ap14_O.基本每股盈餘。",
         "financial_revenue": "財報營業收入；上市來自 TWSE t187ap14_L，上櫃來自 TPEx mopsfin_t187ap14_O，單位以公開資料欄位常用仟元呈現。",
         "operating_income": "營業利益；上市來自 TWSE t187ap14_L，上櫃來自 TPEx mopsfin_t187ap14_O，單位以仟元呈現。",
         "net_income": "稅後淨利；上市來自 TWSE t187ap14_L，上櫃來自 TPEx mopsfin_t187ap14_O，單位以仟元呈現。",
-        "gross_margin_pct": "毛利率；上市來自 TWSE t187ap17_L.毛利率(%)(營業毛利)/(營業收入)。上櫃目前未找到穩定 TPEx OpenAPI 對應欄位，暫留空。",
-        "operating_margin_pct": "營業利益率；上市優先使用 TWSE t187ap17_L.營業利益率(%)，上櫃以 mopsfin_t187ap14_O 的營業利益 / 營業收入計算。",
-        "net_margin_pct": "稅後淨利率；上市優先使用 TWSE t187ap17_L.稅後純益率(%)，上櫃以 mopsfin_t187ap14_O 的稅後淨利 / 營業收入計算。",
+        "gross_margin_pct": "毛利率；上市來自 TWSE t187ap17_L，上櫃來自 TPEx mopsfin_187ap17_O，皆使用官方直接提供的毛利率欄位。",
+        "operating_margin_pct": "營業利益率；上市來自 TWSE t187ap17_L，上櫃優先使用 TPEx mopsfin_187ap17_O；若上櫃官方比率欄位缺值，才以營業利益 / 營業收入計算。",
+        "net_margin_pct": "稅後淨利率；上市來自 TWSE t187ap17_L，上櫃優先使用 TPEx mopsfin_187ap17_O；若上櫃官方比率欄位缺值，才以稅後淨利 / 營業收入計算。",
         "fundamentals_status": "基本面整體狀態；綜合估值、月營收、財報三組官方資料，顯示三組齊全、部分缺少、三組皆缺少或略過。個別欄位缺值請看各組資料備註。",
         "fundamentals_source": "基本面資料來源；列出本列基本面欄位使用的 TWSE/TPEx 端點。",
-        "fundamentals_note": "基本面整體備註；股票列只保留會直接影響該列判讀的資料限制，例如上櫃毛利率暫缺公開穩定端點。ROE 尚未納入的共同限制集中放在使用說明，不在每支股票重複顯示。",
+        "fundamentals_note": "基本面整體備註；股票列只保留會直接影響該列判讀的資料限制，例如官方營益分析端點沒有該股票。ROE 尚未納入的共同限制集中放在使用說明，不在每支股票重複顯示。",
     }
     rows = []
     for key, value in definitions.items():
@@ -1496,12 +1511,12 @@ def guide_rows() -> list[dict[str, str]]:
         {
             "section": "資料來源",
             "item": "財報資料",
-            "description": "EPS、財報營業收入、營業利益、稅後淨利與利潤率依財報期別呈現；上市使用 TWSE t187ap14_L/t187ap17_L，上櫃使用 TPEx mopsfin_t187ap14_O，表頭括號顯示例如 2026Q1。",
+            "description": "EPS、財報營業收入、營業利益、稅後淨利與利潤率依財報期別呈現；上市使用 TWSE t187ap14_L/t187ap17_L，上櫃使用 TPEx mopsfin_t187ap14_O/mopsfin_187ap17_O，表頭括號顯示例如 2026Q1。",
         },
         {
             "section": "資料來源",
             "item": "基本面限制",
-            "description": "上櫃毛利率目前沒有確認到穩定 TPEx OpenAPI 對應欄位，先留空；ROE 也暫未納入，因公開端點尚未確認穩定權益資料來源。",
+            "description": "ROE 暫未納入，因公開端點尚未確認穩定的期初與期末股東權益資料來源；此共同限制不在每支股票列重複顯示。",
         },
         {
             "section": "資料品質",
@@ -1511,7 +1526,7 @@ def guide_rows() -> list[dict[str, str]]:
         {
             "section": "資料來源",
             "item": "毛利率註記",
-            "description": "毛利率欄位上市有資料，來源是 TWSE t187ap17_L；上櫃目前空白，不會用營業利益率代替，以免混淆兩種不同指標。",
+            "description": "毛利率欄位上市來自 TWSE t187ap17_L，上櫃來自 TPEx mopsfin_187ap17_O；兩者皆讀取官方直接提供的毛利率，不會以營業利益率代替。",
         },
         {
             "section": "爬取方式",
@@ -1546,7 +1561,7 @@ def guide_rows() -> list[dict[str, str]]:
         {
             "section": "爬取方式",
             "item": "交易所財報資料",
-            "description": "上市一次下載 TWSE t187ap14_L 與 t187ap17_L；上櫃一次下載 TPEx mopsfin_t187ap14_O。這批資料提供 EPS、損益欄位與部分利潤率。",
+            "description": "上市一次下載 TWSE t187ap14_L 與 t187ap17_L；上櫃一次下載 TPEx mopsfin_t187ap14_O 與 mopsfin_187ap17_O。這批資料提供 EPS、損益欄位與官方利潤率。",
         },
         {
             "section": "爬取方式",
@@ -1897,6 +1912,8 @@ def xlsx_sheet_xml(
             width = 28
         if column == "valuation_source":
             width = 40
+        if column == "financial_source":
+            width = 50
         parts.append(f'<col min="{idx}" max="{idx}" width="{width}" customWidth="1"/>')
     parts.append("</cols><sheetData>")
 
