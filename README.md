@@ -7,8 +7,8 @@
 
 ## Sample workbook
 
-- `output/tw_valuation_gap_20260709_171754.xlsx` and `_lite.xlsx` are the current full-market reference pair, so users can directly compare the complete and lightweight workbook shapes.
-- The reference pair contains the latest published output; running the scanner locally creates new date-stamped files in the same directory.
+- `output/tw_valuation_gap_20260709_190712.xlsx` and `_lite.xlsx` are the current full-market reference pair (1,089 listed + 891 OTC), so users can directly compare the complete and lightweight workbook shapes.
+- This pair comes from one completed production scan and includes Cnyes target-price results plus all exchange fundamentals. Running the scanner locally creates new date-stamped files in the same directory.
 
 # 台股估值落差 Excel 篩選器
 
