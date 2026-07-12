@@ -7,7 +7,7 @@
 
 ## Sample workbook
 
-- `output/tw_valuation_gap_20260709_190712.xlsx` and `_lite.xlsx` are the current full-market reference pair (1,089 listed + 891 OTC), so users can directly compare the complete and lightweight workbook shapes.
+- `output/tw_valuation_gap_20260712_190712.xlsx` and `_lite.xlsx` are the current full-market reference pair (1,089 listed + 891 OTC), so users can directly compare the complete and lightweight workbook shapes.
 - This pair comes from one completed production scan and includes Cnyes target-price results plus all exchange fundamentals. Running the scanner locally creates new date-stamped files in the same directory.
 
 # 台股估值落差 Excel 篩選器
@@ -36,12 +36,14 @@ run_full_scan.bat
 run_full_scan.bat --no-pause
 ```
 
-輸出檔會放在 `output/`，預設完整全市場檔名包含最新收盤日期與產檔時間，避免同一天重跑時覆蓋舊檔，例如：
+輸出檔會放在 `output/`，檔名使用「分析執行日期＋產檔時間」，避免把分析日和最新收盤資料日混在一起，也避免同一天重跑時覆蓋舊檔。例如在 2026-07-12 分析時：
 
 ```text
-output/tw_valuation_gap_20260703_160512.xlsx
-output/tw_valuation_gap_20260703_160512_lite.xlsx
+output/tw_valuation_gap_20260712_160512.xlsx
+output/tw_valuation_gap_20260712_160512_lite.xlsx
 ```
+
+Excel 內的「最新收盤日期」才是本次使用的行情資料日；假日或休市後執行時，它可能早於檔名中的分析日期。
 
 Excel 內的正式資料表會使用中文表頭；程式內部仍保留英文欄位 key 以維持計算與排序穩定。股價、目標價、成交股數(股)、成交金額(元)、成交筆數(筆)、家數等數字欄位會套用千分位格式。
 

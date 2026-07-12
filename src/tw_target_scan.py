@@ -1368,7 +1368,7 @@ def dictionary_rows() -> list[dict[str, str]]:
         "industry": "產業別；保留 TWSE/TPEx 基本資料原始值，可能是文字名稱或產業代碼。",
         "industry_name": "產業名稱；由產業別代碼轉成中文名稱，若原本就是文字則沿用原值。",
         "listing_date": "上市或上櫃日期。",
-        "close_date": "最新收盤行情日期，也是輸出檔名使用的主要日期。",
+        "close_date": "最新收盤行情日期；與分析執行日可能不同。輸出檔名使用分析執行日，實際收盤資料日以本欄為準。",
         "close": "TWSE 或 TPEx 每日收盤價，不是即時價。",
         "trade_volume": "成交股數，單位是股，不是張；TWSE TradeVolume 與 TPEx TradingShares 皆為股數，Excel 以千分位顯示。",
         "trade_value": "成交金額，單位是新台幣元；TWSE TradeValue 與 TPEx TransactionAmount 皆為元，Excel 以千分位顯示。",
@@ -1486,7 +1486,7 @@ def guide_rows() -> list[dict[str, str]]:
         {
             "section": "資料來源",
             "item": "收盤價",
-            "description": "使用 TWSE/TPEx 每日收盤行情，不是即時報價；檔名日期代表本次報表使用的最新收盤日期。",
+            "description": "使用 TWSE/TPEx 每日收盤行情，不是即時報價；檔名日期代表分析執行日，實際行情日期請看「最新收盤日期」。",
         },
         {
             "section": "資料來源",
@@ -2296,8 +2296,9 @@ def main(argv: list[str]) -> int:
         statuses,
     )
     rows = build_rows(stocks, closes, targets, fundamentals, args)
-    date_part = report_date(rows).replace("-", "")
-    generated_time_part = datetime.now().strftime("%H%M%S")
+    generated_at = datetime.now()
+    date_part = generated_at.strftime("%Y%m%d")
+    generated_time_part = generated_at.strftime("%H%M%S")
     suffix = ""
     if args.universe == "watchlist":
         suffix += "_watchlist"
