@@ -7,8 +7,8 @@
 
 ## Sample workbook
 
-- `output/tw_valuation_gap_20260703_172748.xlsx` is intentionally tracked as a representative full-market sample so users can preview the workbook tabs, columns, and formatting before running the scanner.
-- Day-to-day generated files under `output/` are still ignored by default; only this sample workbook is kept in Git.
+- `output/tw_valuation_gap_20260709_171754.xlsx` and `_lite.xlsx` are the current full-market reference pair, so users can directly compare the complete and lightweight workbook shapes.
+- The reference pair contains the latest published output; running the scanner locally creates new date-stamped files in the same directory.
 
 # 台股估值落差 Excel 篩選器
 
@@ -58,7 +58,7 @@ Excel 的「平均目標價」來自鉅亨個股頁內嵌 `targetValuation.feMea
 
 `毛利率`、`營業利益率`、`稅後淨利率`皆優先使用交易所直接提供的官方比率：上市來自 TWSE `t187ap17_L`，上櫃來自 TPEx `mopsfin_187ap17_O`。程式不會用營業利益率冒充毛利率；只有上櫃營業利益率或稅後淨利率的官方欄位缺值時，才使用同期間損益數字計算對應比率。
 
-`_lite` 輕量檔也保留估值、月營收、財報各自的日期或期別、來源與必要備註，並包含毛利率、營業利益率與稅後淨利率；完整版另外保留財報營業收入、營業利益、稅後淨利與基本面整體備註。最後的「基本面整體狀態」只彙總估值、月營收、財報三組資料是否齊全，不代表每一個欄位都有值。資料表表頭會自動換行，基本面欄寬也有上限，避免因期間文字把整欄撐得過寬。
+完整版與 `_lite` 來自同一次抓取，股票列、資料來源與計算邏輯完全相同；lite 不是較舊或少抓資料的版本。完整版有 7 個分頁、63 個股票欄位，另有「過舊低信心」分頁，並保留開高低價、成交筆數、目標價修正家數、月營收金額/月增率、財報金額與基本面整體備註等明細。lite 有 6 個分頁、43 個股票欄位，保留收盤與成交摘要、主要目標價、估值、月營收年增率、EPS、毛利率、營業利益率、稅後淨利率、各組來源/備註與整體狀態，適合日常快速開啟。最後的「基本面整體狀態」只彙總估值、月營收、財報三組資料是否齊全，不代表每一個欄位都有值。
 
 ROE 尚未納入的共同限制只集中寫在 Excel「使用說明／欄位說明」及資料源文件，不會在每支股票的基本面備註重複顯示，以免增加表格雜訊。
 
