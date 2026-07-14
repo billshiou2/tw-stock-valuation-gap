@@ -1,5 +1,13 @@
 # Agent Progress
 
+## 2026-07-15
+
+- User requested another overall check followed by Git sync. Revalidated the real `run_full_scan.bat`, Python 3.11 compile/CLI, `.env` versus `.env.example` parity, and the latest full/lite production pair from 2026-07-13. Both workbooks remain structurally clean with 1,980 unique stocks, all 14 source-status rows `ok`, and zero mismatches across 43 shared columns. No scanner process is active and this repository currently has no automated test files. Pre-push checks confirm `C:\code\股價與目標價`, `main`, and `https://github.com/billshiou2/tw-stock-valuation-gap.git` correspond to the same project; the intended commit is limited to this handoff log and the preserved 2026-07-13 validation note.
+
+## 2026-07-13
+
+- Completed a fresh overall check against the real `run_full_scan.bat` entrypoint and the newest production pair, `output/tw_valuation_gap_20260713_005026.xlsx` and `_lite.xlsx`. No scanner Python process remained active. Both workbooks contain 1,980 unique stocks (1,089 listed + 891 OTC), with 1,974 successful Cnyes rows and 6 no-target rows; source/status sheets report every exchange and fundamentals endpoint as `ok`. Full has 7 sheets/63 stock columns and lite has 6 sheets/43 stock columns, both open on `低估清單`; all 43 shared columns match for every stock. ZIP/XML validation found no corrupt entry, blank cell nodes, formulas, or AutoFilter. `py -3.11 -m py_compile`, CLI help, and `git diff --check` passed. `.env` and `.env.example` have the same 14 keys and defaults. Local `main`, `origin/main`, and the live GitHub `refs/heads/main` all match commit `8177e0b`; only this progress note was added by the check.
+
 ## 2026-07-12
 
 - Normalized existing local `output/` workbook filenames using each XLSX file's embedded creation timestamp as the analysis date. The historical `20260703_172748` file was actually created on 2026-07-05 and was renamed accordingly; the `171754` and `180950` pairs were created on 2026-07-12. The superseded `190712` originals were retained with an `_original` suffix because corrected `20260712_190712` files already exist. No output file was deleted or overwritten.
